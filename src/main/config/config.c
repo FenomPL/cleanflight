@@ -409,6 +409,7 @@ static void resetConf(void)
 
     masterConfig.rxConfig.rssi_channel = 0;
     masterConfig.rxConfig.rssi_scale = RSSI_SCALE_DEFAULT;
+    masterConfig.rxConfig.rssi_offset = 0;
     masterConfig.rxConfig.rssi_ppm_invert = 0;
 
     masterConfig.inputFilteringMode = INPUT_FILTERING_DISABLED;

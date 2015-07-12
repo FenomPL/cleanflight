@@ -414,6 +414,8 @@ void updateRSSIADC(uint32_t currentTime)
 
     int16_t adcRssiMean = 0;
     uint16_t adcRssiSample = adcGetChannel(ADC_RSSI);
+    if ( adcRssiSample >= rxConfig->rssi_offset )
+    	adcRssiSample -= rxConfig->rssi_offset;
     uint8_t rssiPercentage = adcRssiSample / rxConfig->rssi_scale;
 
     adcRssiSampleIndex = (adcRssiSampleIndex + 1) % RSSI_ADC_SAMPLE_COUNT;
