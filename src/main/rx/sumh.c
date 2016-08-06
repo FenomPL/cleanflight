@@ -25,10 +25,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "platform.h"
+#include <platform.h>
 
-#include "build_config.h"
+#include "build/build_config.h"
 
+#include "config/parameter_group.h"
+
+#include "drivers/dma.h"
 #include "drivers/system.h"
 
 #include "drivers/serial.h"
@@ -61,7 +64,7 @@ static uint16_t sumhReadRawRC(rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan);
 
 
 
-bool sumhInit(rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig, rcReadRawDataPtr *callback)
+bool sumhInit(rxRuntimeConfig_t *rxRuntimeConfig, rcReadRawDataPtr *callback)
 {
     UNUSED(rxConfig);
 

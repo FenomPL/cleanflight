@@ -19,9 +19,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "platform.h"
-#include "debug.h"
+#include <platform.h>
+#include "build/debug.h"
 
+#include "config/parameter_group.h"
+
+#include "drivers/dma.h"
 #include "drivers/gpio.h"
 #include "drivers/system.h"
 
@@ -31,7 +34,7 @@
 #include "drivers/serial_uart.h"
 #include "io/serial.h"
 
-#include "config/config.h"
+#include "fc/config.h"
 
 #include "rx/rx.h"
 #include "rx/spektrum.h"
@@ -43,6 +46,7 @@
 #define SPEKTRUM_1024_CHANNEL_COUNT 7
 
 #define SPEK_FRAME_SIZE 16
+#define SPEKTRUM_NEEDED_FRAME_INTERVAL 5000
 
 #define SPEKTRUM_BAUDRATE 115200
 
@@ -58,11 +62,11 @@ static uint16_t spektrumReadRawRC(rxRuntimeConfig_t *rxRuntimeConfig, uint8_t ch
 
 static rxRuntimeConfig_t *rxRuntimeConfigPtr;
 
-bool spektrumInit(rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig, rcReadRawDataPtr *callback)
+bool spektrumInit(rxRuntimeConfig_t *rxRuntimeConfig, rcReadRawDataPtr *callback)
 {
     rxRuntimeConfigPtr = rxRuntimeConfig;
 
-    switch (rxConfig->serialrx_provider) {
+    switch (rxConfig()->serialrx_provider) {
         case SERIALRX_SPEKTRUM2048:
             // 11 bit frames
             spek_chan_shift = 3;
@@ -95,22 +99,25 @@ bool spektrumInit(rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig, rcRe
 // Receive ISR callback
 static void spektrumDataReceive(uint16_t c)
 {
-    uint32_t spekTime;
-    static uint32_t spekTimeLast, spekTimeInterval;
-    static uint8_t spekFramePosition;
+    uint32_t spekTime, spekTimeInterval;
+    static uint32_t spekTimeLast = 0;
+    static uint8_t spekFramePosition = 0;
 
     spekTime = micros();
     spekTimeInterval = spekTime - spekTimeLast;
     spekTimeLast = spekTime;
-    if (spekTimeInterval > 5000) {
+
+    if (spekTimeInterval > SPEKTRUM_NEEDED_FRAME_INTERVAL) {
         spekFramePosition = 0;
     }
 
-    spekFrame[spekFramePosition] = (uint8_t)c;
-    if (spekFramePosition == SPEK_FRAME_SIZE - 1) {
-        rcFrameComplete = true;
-    } else {
-        spekFramePosition++;
+    if (spekFramePosition < SPEK_FRAME_SIZE) {
+        spekFrame[spekFramePosition++] = (uint8_t)c;
+        if (spekFramePosition == SPEK_FRAME_SIZE) {
+            rcFrameComplete = true;
+        } else {
+            rcFrameComplete = false;
+        }
     }
 }
 

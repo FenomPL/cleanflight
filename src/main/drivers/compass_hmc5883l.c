@@ -21,11 +21,13 @@
 
 #include <math.h>
 
-#include "platform.h"
-#include "debug.h"
+#include <platform.h>
+#include "build/debug.h"
 
 #include "common/axis.h"
 #include "common/maths.h"
+
+#include "config/parameter_group.h"
 
 #include "system.h"
 #include "nvic.h"
@@ -176,7 +178,7 @@ static void hmc5883lConfigureDataReadyInterruptHandling(void)
     }
 #endif
 
-    registerExti15_10_CallbackHandler(MAG_DATA_READY_EXTI_Handler);
+    registerExtiCallbackHandler(hmc5883Config->exti_irqn, MAG_DATA_READY_EXTI_Handler);
 
     EXTI_ClearITPendingBit(hmc5883Config->exti_line);
 

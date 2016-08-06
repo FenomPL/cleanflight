@@ -17,9 +17,11 @@
 
 #pragma once
 
+#define PID_MAX_I 256
+#define PID_MAX_D 512
+#define PID_MAX_TOTAL_PID 1000
+
 #define GYRO_I_MAX 256                      // Gyro I limiter
-#define RCconstPI   0.159154943092f         // 0.5f / M_PI;
-#define OLD_YAW 0                           // [0/1] 0 = MultiWii 2.3 yaw, 1 = older yaw.
 #define YAW_P_LIMIT_MIN 100                 // Maximum value for yaw P limiter
 #define YAW_P_LIMIT_MAX 500                 // Maximum value for yaw P limiter
 
@@ -38,53 +40,45 @@ typedef enum {
 } pidIndex_e;
 
 typedef enum {
-    PID_CONTROLLER_MULTI_WII,
-    PID_CONTROLLER_REWRITE,
+    PID_CONTROLLER_MW23 = 0,
+    PID_CONTROLLER_MWREWRITE,
     PID_CONTROLLER_LUX_FLOAT,
-    PID_CONTROLLER_MULTI_WII_23,
-    PID_CONTROLLER_MULTI_WII_HYBRID,
-    PID_CONTROLLER_HARAKIRI,
+    PID_COUNT
 } pidControllerType_e;
 
-#define IS_PID_CONTROLLER_FP_BASED(pidController) (pidController == 2)
+#define IS_PID_CONTROLLER_FP_BASED(pidController) (pidController == PID_CONTROLLER_LUX_FLOAT)
+
+typedef enum {
+    PID_DELTA_FROM_MEASUREMENT = 0,
+    PID_DELTA_FROM_ERROR
+} pidDeltaMethod_e;
 
 typedef struct pidProfile_s {
-    uint8_t pidController;                  // 0 = multiwii original, 1 = rewrite from http://www.multiwii.com/forum/viewtopic.php?f=8&t=3671, 1, 2 = Luggi09s new baseflight pid
-
-    uint8_t P8[PID_ITEM_COUNT];
-    uint8_t I8[PID_ITEM_COUNT];
-    uint8_t D8[PID_ITEM_COUNT];
-
-    float P_f[3];                           // float p i and d factors for lux float pid controller
-    float I_f[3];
-    float D_f[3];
-    float A_level;
-    float H_level;
-    uint8_t H_sensitivity;
-
+    uint8_t  P8[PID_ITEM_COUNT];
+    uint8_t  I8[PID_ITEM_COUNT];
+    uint8_t  D8[PID_ITEM_COUNT];
+    uint8_t  pidController;
     uint16_t yaw_p_limit;                   // set P term limit (fixed value was 300)
-    uint8_t dterm_cut_hz;                   // (default 17Hz, Range 1-50Hz) Used for PT1 element in PID1, PID2 and PID5
-    uint8_t pterm_cut_hz;                   // Used for fitlering Pterm noise on noisy frames
-    uint8_t gyro_cut_hz;                    // Used for soft gyro filtering
-
-    uint8_t pid5_oldyw;                     // [0/1] 0 = multiwii 2.3 yaw, 1 = older yaw
-
-#ifdef GTUNE
-    uint8_t  gtune_lolimP[3];               // [0..200] Lower limit of P during G tune
-    uint8_t  gtune_hilimP[3];               // [0..200] Higher limit of P during G tune. 0 Disables tuning for that axis.
-    uint8_t  gtune_pwr;                     // [0..10] Strength of adjustment
-    uint16_t gtune_settle_time;             // [200..1000] Settle time in ms
-    uint8_t  gtune_average_cycles;          // [8..128] Number of looptime cycles used for gyro average calculation
-#endif
+    uint16_t dterm_lpf;                     // dterm filtering
+    uint16_t yaw_lpf;                       // additional yaw filter when yaw axis too noisy
+    uint8_t  deltaMethod;
 } pidProfile_t;
 
-#define DEGREES_TO_DECIDEGREES(angle) (angle * 10)
-#define DECIDEGREES_TO_DEGREES(angle) (angle / 10.0f)
+PG_DECLARE_PROFILE(pidProfile_t, pidProfile);
 
-extern int16_t axisPID[XYZ_AXIS_COUNT];
-extern int32_t axisPID_P[3], axisPID_I[3], axisPID_D[3];
+struct controlRateConfig_s;
+union rollAndPitchTrims_u;
+struct rxConfig_s;
+typedef void (*pidControllerFuncPtr)(const pidProfile_t *pidProfile, const struct controlRateConfig_s *controlRateConfig,
+        uint16_t max_angle_inclination, const union rollAndPitchTrims_u *angleTrim, const struct rxConfig_s *rxConfig);            // pid controller function prototype
+
+extern int16_t axisPID[FD_INDEX_COUNT];
+extern int32_t axisPID_P[FD_INDEX_COUNT], axisPID_I[FD_INDEX_COUNT], axisPID_D[FD_INDEX_COUNT];
+
+float pidScaleITermToRcInput(int axis);
+void pidFilterIsSetCheck(const pidProfile_t *pidProfile);
 
 void pidSetController(pidControllerType_e type);
-void pidResetErrorAngle(void);
-void pidResetErrorGyro(void);
+void pidResetITermAngle(void);
+void pidResetITerm(void);
 

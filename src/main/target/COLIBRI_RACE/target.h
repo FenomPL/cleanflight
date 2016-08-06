@@ -45,6 +45,10 @@
 #define USE_SPI_DEVICE_1
 
 #define SPI1_GPIO               GPIOB
+#define SPI1_NSS_GPIO           GPIOA
+#define SPI1_NSS_PERIPHERAL     RCC_AHBPeriph_GPIOA
+#define SPI1_NSS_PIN            GPIO_Pin_4
+#define SPI1_NSS_PIN_SOURCE     GPIO_PinSource4
 #define SPI1_GPIO_PERIPHERAL    RCC_AHBPeriph_GPIOB
 #define SPI1_SCK_PIN            GPIO_Pin_3
 #define SPI1_SCK_PIN_SOURCE     GPIO_PinSource3
@@ -55,11 +59,15 @@
 
 #define USABLE_TIMER_CHANNEL_COUNT 11
 
+#define EXTI_CALLBACK_HANDLER_COUNT 1 // MPU data ready
+
 #define GYRO
+#define USE_GYRO_MPU6500
 #define USE_GYRO_SPI_MPU6500
 #define GYRO_MPU6500_ALIGN CW270_DEG
 
 #define ACC
+#define USE_ACC_MPU6500
 #define USE_ACC_SPI_MPU6500
 #define ACC_MPU6500_ALIGN CW270_DEG
 
@@ -67,7 +75,9 @@
 #define USE_BARO_MS5611
 
 #define MAG
+#define USE_MPU9250_MAG // Enables bypass configuration
 #define USE_MAG_HMC5883
+#define USE_MAG_AK8963
 #define USE_MAG_AK8975
 
 #define BEEPER
@@ -75,10 +85,12 @@
 #define LED1
 #define LED2
 
+#define USB_IO
+
 #define USE_VCP
-#define USE_USART1
-#define USE_USART2
-#define USE_USART3
+#define USE_UART1
+#define USE_UART2
+#define USE_UART3
 #define SERIAL_PORT_COUNT 4
 
 #define UART1_TX_PIN        GPIO_Pin_4
@@ -117,35 +129,38 @@
 #define I2C2_SDA_CLK_SOURCE  RCC_AHBPeriph_GPIOA
 
 #define USE_ADC
+#define BOARD_HAS_VOLTAGE_DIVIDER
 
 #define ADC_INSTANCE                ADC1
 #define ADC_AHB_PERIPHERAL          RCC_AHBPeriph_DMA1
 #define ADC_DMA_CHANNEL             DMA1_Channel1
 
-#define VBAT_ADC_GPIO               GPIOC
-#define VBAT_ADC_GPIO_PIN           GPIO_Pin_0
-#define VBAT_ADC_CHANNEL            ADC_Channel_6
+#define ADC0_GPIO                   GPIOC
+#define ADC0_GPIO_PIN               GPIO_Pin_0
+#define ADC0_CHANNEL                ADC_Channel_6
 
-#define CURRENT_METER_ADC_GPIO      GPIOC
-#define CURRENT_METER_ADC_GPIO_PIN  GPIO_Pin_1
-#define CURRENT_METER_ADC_CHANNEL   ADC_Channel_7
+#define ADC1_GPIO                   GPIOC
+#define ADC1_GPIO_PIN               GPIO_Pin_1
+#define ADC1_CHANNEL                ADC_Channel_7
 
-#define RSSI_ADC_GPIO               GPIOC
-#define RSSI_ADC_GPIO_PIN           GPIO_Pin_2
-#define RSSI_ADC_CHANNEL            ADC_Channel_8
+#define ADC2_GPIO                   GPIOC
+#define ADC2_GPIO_PIN               GPIO_Pin_2
+#define ADC2_CHANNEL                ADC_Channel_8
 
-#define EXTERNAL1_ADC_GPIO          GPIOC
-#define EXTERNAL1_ADC_GPIO_PIN      GPIO_Pin_3
-#define EXTERNAL1_ADC_CHANNEL       ADC_Channel_9
+#define ADC3_GPIO                   GPIOC
+#define ADC3_GPIO_PIN               GPIO_Pin_3
+#define ADC3_CHANNEL                ADC_Channel_9
 
-#define BLACKBOX
-#define GPS
-#define GTUNE
+#define ADC_CHANNEL_COUNT 4
+
+#define ADC_BATTERY     ADC_CHANNEL0
+#define ADC_CURRENT     ADC_CHANNEL1
+#define ADC_RSSI        ADC_CHANNEL2
+#define ADC_EXTERNAL    ADC_CHANNEL3
+
 #define LED_STRIP
-
 #define LED_STRIP_TIMER TIM16
 
-#define USE_LED_STRIP_ON_DMA1_CHANNEL3
 #define WS2811_GPIO                     GPIOA
 #define WS2811_GPIO_AHB_PERIPHERAL      RCC_AHBPeriph_GPIOA
 #define WS2811_GPIO_AF                  GPIO_AF_1
@@ -155,8 +170,25 @@
 #define WS2811_TIMER_APB2_PERIPHERAL    RCC_APB2Periph_TIM16
 #define WS2811_DMA_CHANNEL              DMA1_Channel3
 #define WS2811_IRQ                      DMA1_Channel3_IRQn
+#define WS2811_DMA_TC_FLAG              DMA1_FLAG_TC3
+#define WS2811_DMA_HANDLER_IDENTIFER    DMA1Channel3Descriptor
 
+
+// MPU6500 interrupt
+//#define DEBUG_MPU_DATA_READY_INTERRUPT
+#define USE_MPU_DATA_READY_SIGNAL
+#define ENSURE_MPU_DATA_READY_IS_LOW
+
+#define USE_SERIAL_4WAY_BLHELI_INTERFACE
+
+#define DEFAULT_RX_FEATURE FEATURE_RX_PPM
+#define DEFAULT FEATURES (FEATURE_ONESHOT125 | FEATURE_LED_STRIP)
+
+#define BLACKBOX
+#define GPS
+#define GTUNE
 #define TELEMETRY
 #define SERIAL_RX
 #define USE_SERVOS
 #define USE_CLI
+

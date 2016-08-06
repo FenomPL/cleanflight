@@ -21,7 +21,7 @@
 
 #include <platform.h>
 
-#include "build_config.h"
+#include "build/build_config.h"
 
 #include "gpio.h"
 #include "system.h"
@@ -61,6 +61,12 @@ static const i2cDevice_t i2cHardwareMap[] = {
 static I2C_TypeDef *I2Cx = NULL;
 // Copy of device index for reinit, etc purposes
 static I2CDevice I2Cx_index;
+static bool i2cOverClock;
+
+void i2cSetOverclock(uint8_t OverClock)
+{
+    i2cOverClock = (OverClock) ? true : false;
+}
 
 void I2C1_ER_IRQHandler(void)
 {
@@ -82,7 +88,6 @@ void I2C2_EV_IRQHandler(void)
     i2c_ev_handler();
 }
 
-#define I2C_DEFAULT_TIMEOUT 30000
 static volatile uint16_t i2cErrorCount = 0;
 
 static volatile bool error = false;
@@ -340,7 +345,13 @@ void i2cInit(I2CDevice index)
     i2c.I2C_Mode = I2C_Mode_I2C;
     i2c.I2C_DutyCycle = I2C_DutyCycle_2;
     i2c.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-    i2c.I2C_ClockSpeed = 400000;
+
+    if (i2cOverClock) {
+        i2c.I2C_ClockSpeed = 800000; // 800khz Maximum speed tested on various boards without issues
+    } else {
+        i2c.I2C_ClockSpeed = 400000; // 400khz Operation according specs
+    }
+
     I2C_Cmd(I2Cx, ENABLE);
     I2C_Init(I2Cx, &i2c);
 

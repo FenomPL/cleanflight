@@ -32,7 +32,7 @@
 #ifdef OLIMEXINO_UNCUT_LED2_E_JUMPER
 // "LED2" is using one of the PWM pins (CH2/PWM2), so we must not use PWM2 unless the jumper is cut.  @See pwmInit()
 #define LED1_GPIO   GPIOA
-#define LED1_PIN    Pin_1 // D3, PA1/USART2_RTS/ADC1/TIM2_CH3 - "LED2" on silkscreen, Yellow
+#define LED1_PIN    Pin_1 // D3, PA1/UART2_RTS/ADC1/TIM2_CH3 - "LED2" on silkscreen, Yellow
 #define LED1_PERIPHERAL RCC_APB2Periph_GPIOA
 #define LED1
 #endif
@@ -64,9 +64,16 @@
 #define USE_MAG_HMC5883
 
 #define SONAR
+#define SONAR_TRIGGER_PIN           Pin_0   // RX7 (PB0) - only 3.3v ( add a 1K Ohms resistor )
+#define SONAR_TRIGGER_GPIO          GPIOB
+#define SONAR_ECHO_PIN              Pin_1   // RX8 (PB1) - only 3.3v ( add a 1K Ohms resistor )
+#define SONAR_ECHO_GPIO             GPIOB
+#define SONAR_EXTI_LINE             EXTI_Line1
+#define SONAR_EXTI_PIN_SOURCE       GPIO_PinSource1
+#define SONAR_EXTI_IRQN             EXTI1_IRQn
 
-#define USE_USART1
-#define USE_USART2
+#define USE_UART1
+#define USE_UART2
 #define USE_SOFTSERIAL1
 #define USE_SOFTSERIAL2
 #define SERIAL_PORT_COUNT 4
@@ -87,25 +94,40 @@
 
 #define USE_ADC
 
-#define CURRENT_METER_ADC_GPIO      GPIOB
-#define CURRENT_METER_ADC_GPIO_PIN  GPIO_Pin_1
-#define CURRENT_METER_ADC_CHANNEL   ADC_Channel_9
+#define ADC_INSTANCE                ADC1
+#define ADC_ABP2_PERIPHERAL         RCC_APB2Periph_ADC1
+#define ADC_AHB_PERIPHERAL          RCC_AHBPeriph_DMA1
+#define ADC_DMA_CHANNEL             DMA1_Channel1
 
-#define VBAT_ADC_GPIO               GPIOA
-#define VBAT_ADC_GPIO_PIN           GPIO_Pin_4
-#define VBAT_ADC_CHANNEL            ADC_Channel_4
+#define ADC0_GPIO                   GPIOB
+#define ADC0_GPIO_PIN               GPIO_Pin_1
+#define ADC0_CHANNEL                ADC_Channel_9
 
-#define RSSI_ADC_GPIO               GPIOA
-#define RSSI_ADC_GPIO_PIN           GPIO_Pin_1
-#define RSSI_ADC_CHANNEL            ADC_Channel_1
+#define ADC1_GPIO                   GPIOA
+#define ADC1_GPIO_PIN               GPIO_Pin_4
+#define ADC1_CHANNEL                ADC_Channel_4
 
-#define EXTERNAL1_ADC_GPIO          GPIOA
-#define EXTERNAL1_ADC_GPIO_PIN      GPIO_Pin_5
-#define EXTERNAL1_ADC_CHANNEL       ADC_Channel_5
+#define ADC2_GPIO                   GPIOA
+#define ADC2_GPIO_PIN               GPIO_Pin_1
+#define ADC2_CHANNEL                ADC_Channel_1
+
+#define ADC3_GPIO                   GPIOA
+#define ADC3_GPIO_PIN               GPIO_Pin_5
+#define ADC3_CHANNEL                ADC_Channel_5
+
+#define ADC_CHANNEL_COUNT 4
+
+#define ADC_CURRENT     ADC_CHANNEL0
+#define ADC_BATTERY     ADC_CHANNEL1
+#define ADC_RSSI        ADC_CHANNEL2
+#define ADC_EXTERNAL    ADC_CHANNEL3
 
 #define GPS
+
 #define LED_STRIP
 #define LED_STRIP_TIMER TIM3
+#define WS2811_DMA_TC_FLAG           DMA1_FLAG_TC6
+#define WS2811_DMA_HANDLER_IDENTIFER DMA1Channel6Descriptor
 
 #define TELEMETRY
 #define SERIAL_RX

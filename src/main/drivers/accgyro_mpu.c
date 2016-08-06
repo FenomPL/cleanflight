@@ -20,9 +20,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "platform.h"
-#include "build_config.h"
-#include "debug.h"
+#include <platform.h>
+#include "build/build_config.h"
+#include "build/debug.h"
 
 #include "common/maths.h"
 
@@ -32,6 +32,7 @@
 #include "gpio.h"
 #include "exti.h"
 #include "bus_i2c.h"
+#include "gyro_sync.h"
 
 #include "sensor.h"
 #include "accgyro.h"
@@ -44,11 +45,12 @@
 
 //#define DEBUG_MPU_DATA_READY_INTERRUPT
 
-
 static bool mpuReadRegisterI2C(uint8_t reg, uint8_t length, uint8_t* data);
 static bool mpuWriteRegisterI2C(uint8_t reg, uint8_t data);
 
 static void mpu6050FindRevision(void);
+
+static volatile bool mpuDataReady;
 
 #ifdef USE_SPI
 static bool detectSPISensorsAndUpdateDetectionResult(void);
@@ -60,20 +62,6 @@ mpuConfiguration_t mpuConfiguration;
 static const extiConfig_t *mpuIntExtiConfig = NULL;
 
 #define MPU_ADDRESS             0x68
-
-// MPU6050
-#define MPU_RA_WHO_AM_I         0x75
-#define MPU_RA_WHO_AM_I_LEGACY  0x00
-#define MPU_RA_XA_OFFS_H        0x06    //[15:0] XA_OFFS
-#define MPU_RA_PRODUCT_ID       0x0C    // Product ID Register
-#define MPU_RA_ACCEL_XOUT_H     0x3B
-#define MPU_RA_GYRO_XOUT_H      0x43
-
-// WHO_AM_I register contents for MPU3050, 6050 and 6500
-#define MPU6500_WHO_AM_I_CONST              (0x70)
-#define MPUx0x0_WHO_AM_I_CONST              (0x68)
-
-#define MPU_INQUIRY_MASK   0x7E
 
 mpuDetectionResult_t *detectMpu(const extiConfig_t *configToUse)
 {
@@ -133,7 +121,7 @@ static bool detectSPISensorsAndUpdateDetectionResult(void)
 #ifdef USE_GYRO_SPI_MPU6500
     if (mpu6500SpiDetect()) {
         mpuDetectionResult.sensor = MPU_65xx_SPI;
-        mpuConfiguration.gyroReadXRegister = MPU6500_RA_GYRO_XOUT_H;
+        mpuConfiguration.gyroReadXRegister = MPU_RA_GYRO_XOUT_H;
         mpuConfiguration.read = mpu6500ReadRegister;
         mpuConfiguration.write = mpu6500WriteRegister;
         return true;
@@ -143,7 +131,7 @@ static bool detectSPISensorsAndUpdateDetectionResult(void)
 #ifdef USE_GYRO_SPI_MPU6000
     if (mpu6000SpiDetect()) {
         mpuDetectionResult.sensor = MPU_60x0_SPI;
-        mpuConfiguration.gyroReadXRegister = MPU6000_GYRO_XOUT_H;
+        mpuConfiguration.gyroReadXRegister = MPU_RA_GYRO_XOUT_H;
         mpuConfiguration.read = mpu6000ReadRegister;
         mpuConfiguration.write = mpu6000WriteRegister;
         return true;
@@ -175,6 +163,8 @@ static void mpu6050FindRevision(void)
             mpuDetectionResult.resolution = MPU_HALF_RESOLUTION;
         } else if (revision == 2) {
             mpuDetectionResult.resolution = MPU_FULL_RESOLUTION;
+        } else if ((revision == 3) || (revision == 7)) {
+            mpuDetectionResult.resolution = MPU_FULL_RESOLUTION;
         } else {
             failureMode(FAILURE_ACC_INCOMPATIBLE);
         }
@@ -198,6 +188,8 @@ void MPU_DATA_READY_EXTI_Handler(void)
     }
 
     EXTI_ClearITPendingBit(mpuIntExtiConfig->exti_line);
+
+    mpuDataReady = true;
 
 #ifdef DEBUG_MPU_DATA_READY_INTERRUPT
     // Measure the delta in micro seconds between calls to the interrupt handler
@@ -243,7 +235,7 @@ void configureMPUDataReadyInterruptHandling(void)
     }
 #endif
 
-    registerExti15_10_CallbackHandler(MPU_DATA_READY_EXTI_Handler);
+    registerExtiCallbackHandler(mpuIntExtiConfig->exti_irqn, MPU_DATA_READY_EXTI_Handler);
 
     EXTI_ClearITPendingBit(mpuIntExtiConfig->exti_line);
 
@@ -295,30 +287,6 @@ void mpuIntExtiInit(void)
     mpuExtiInitDone = true;
 }
 
-uint8_t determineMPULPF(uint16_t lpf)
-{
-    uint8_t mpuLowPassFilter;
-
-    if (lpf == 256)
-        mpuLowPassFilter = INV_FILTER_256HZ_NOLPF2;
-    else if (lpf >= 188)
-        mpuLowPassFilter = INV_FILTER_188HZ;
-    else if (lpf >= 98)
-        mpuLowPassFilter = INV_FILTER_98HZ;
-    else if (lpf >= 42)
-        mpuLowPassFilter = INV_FILTER_42HZ;
-    else if (lpf >= 20)
-        mpuLowPassFilter = INV_FILTER_20HZ;
-    else if (lpf >= 10)
-        mpuLowPassFilter = INV_FILTER_10HZ;
-    else if (lpf > 0)
-        mpuLowPassFilter = INV_FILTER_5HZ;
-    else
-        mpuLowPassFilter = INV_FILTER_256HZ_NOLPF2;
-
-    return mpuLowPassFilter;
-}
-
 static bool mpuReadRegisterI2C(uint8_t reg, uint8_t length, uint8_t* data)
 {
     bool ack = i2cRead(MPU_ADDRESS, reg, length, data);
@@ -361,4 +329,14 @@ bool mpuGyroRead(int16_t *gyroADC)
     gyroADC[2] = (int16_t)((data[4] << 8) | data[5]);
 
     return true;
+}
+
+bool mpuIsDataReady(void)
+{
+    if (mpuDataReady) {
+        mpuDataReady = false;
+        return true;
+    }
+
+    return false;
 }
