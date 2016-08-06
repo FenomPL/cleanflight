@@ -27,7 +27,7 @@
 #include "drivers/bus_spi.h"
 #include "drivers/sensor.h"
 #include "drivers/accgyro.h"
-#include "drivers/accgyro_spi_mpu6500.h"
+#include "drivers/accgyro_mpu6500.h"
 
 #include "hardware_revision.h"
 
