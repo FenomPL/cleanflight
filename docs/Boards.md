@@ -26,12 +26,9 @@ Cleanflight also runs on the following developer boards:
 
 * STM32F3Discovery - Recommended for developers.
 * Port103R - Recommended for F1 developers.
-* EUSTM32F103RB - Legacy.
 
 There is also limited support for the following boards which may be removed due to lack of users or commercial availability.
  
-* [Olimexino](Board%20-%20Olimexino.md)
-* Naze32Pro
 * STM32F3Discovery with Chebuzz F3 shield.
 
 NOTE: Users are advised against purhasing boards that have CPUs with less than 256KB of EEPROM space - available features may be limited.

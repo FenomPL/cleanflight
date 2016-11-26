@@ -21,7 +21,9 @@
 #include <math.h>
 
 #include <platform.h>
+
 #include "build/debug.h"
+#include "build/build_config.h"
 
 #include "common/maths.h"
 #include "common/axis.h"
@@ -29,6 +31,7 @@
 #include "common/utils.h"
 #include "common/filter.h"
 #include "common/streambuf.h"
+#include "common/time.h"
 
 #include "config/parameter_group.h"
 
@@ -48,14 +51,18 @@
 #include "fc/rc_curves.h"
 #include "fc/fc_serial.h"
 #include "fc/fc_tasks.h"
+#include "fc/fc_debug.h"
 
 #include "scheduler/scheduler.h"
 
 #include "sensors/sensors.h"
+#include "sensors/barometer.h"
 #include "sensors/sonar.h"
 #include "sensors/compass.h"
 #include "sensors/acceleration.h"
 #include "sensors/gyro.h"
+#include "sensors/voltage.h"
+#include "sensors/amperage.h"
 #include "sensors/battery.h"
 
 #include "io/beeper.h"
@@ -104,9 +111,8 @@ enum {
 #define IBATINTERVAL (6 * 3500)
 #define GYRO_WATCHDOG_DELAY 100  // Watchdog for boards without interrupt for gyro
 
-uint16_t cycleTime = 0;         // this is the number in micro second to achieve a full loop, it can differ a little and is taken into account in the PID loop
-
-float dT;
+uint16_t pidDeltaUs = 0;
+uint16_t gyroDeltaUs = 0;
 
 int16_t magHold;
 int16_t headFreeModeHold;
@@ -121,10 +127,6 @@ extern uint8_t PIDweight[3];
 extern uint8_t dynP8[3], dynI8[3], dynD8[3];
 
 static bool isRXDataNew;
-static pt1Filter_t filteredCycleTimeState;
-uint16_t filteredCycleTime;
-
-extern pidControllerFuncPtr pid_controller;
 
 void applyAndSaveAccelerometerTrimsDelta(rollAndPitchTrims_t *rollAndPitchTrimsDelta)
 {
@@ -220,7 +222,7 @@ static void updateRcCommands(void)
             // YAW TPA disabled.
             PIDweight[axis] = 100;
         }
-#ifndef SKIP_PID_MW23
+#ifdef USE_PID_MW23
         // FIXME axis indexes into pids.  use something like lookupPidIndex(rc_alias_e alias) to reduce coupling.
         dynP8[axis] = (uint16_t)pidProfile()->P8[axis] * prop1 / 100;
         dynI8[axis] = (uint16_t)pidProfile()->I8[axis] * prop1 / 100;
@@ -313,7 +315,7 @@ void mwDisarm(void)
     }
 }
 
-#define TELEMETRY_FUNCTION_MASK (FUNCTION_TELEMETRY_FRSKY | FUNCTION_TELEMETRY_HOTT | FUNCTION_TELEMETRY_SMARTPORT | FUNCTION_TELEMETRY_LTM | FUNCTION_TELEMETRY_MAVLINK)
+#define TELEMETRY_FUNCTION_MASK (FUNCTION_TELEMETRY_FRSKY | FUNCTION_TELEMETRY_HOTT | FUNCTION_TELEMETRY_SMARTPORT | FUNCTION_TELEMETRY_LTM | FUNCTION_TELEMETRY_MAVLINK | FUNCTION_TELEMETRY_IBUS)
 
 void releaseSharedTelemetryPorts(void) {
     serialPort_t *sharedPort = findSharedSerialPort(TELEMETRY_FUNCTION_MASK, FUNCTION_MSP_SERVER);
@@ -457,9 +459,6 @@ void processRx(void)
                 DISABLE_STATE(ANTI_WINDUP);
             }
         } else {
-#ifndef SKIP_PID_MW23
-            pidResetITermAngle();
-#endif
             pidResetITerm();
         }
     } else {
@@ -530,9 +529,6 @@ void processRx(void)
         canUseHorizonMode = false;
 
         if (!FLIGHT_MODE(ANGLE_MODE)) {
-#ifndef SKIP_PID_MW23
-            pidResetITermAngle();
-#endif
             ENABLE_FLIGHT_MODE(ANGLE_MODE);
         }
     } else {
@@ -544,9 +540,6 @@ void processRx(void)
         DISABLE_FLIGHT_MODE(ANGLE_MODE);
 
         if (!FLIGHT_MODE(HORIZON_MODE)) {
-#ifndef SKIP_PID_MW23
-            pidResetITermAngle();
-#endif
             ENABLE_FLIGHT_MODE(HORIZON_MODE);
         }
     } else {
@@ -605,8 +598,11 @@ void processRx(void)
             releaseSharedTelemetryPorts();
         } else {
             // the telemetry state must be checked immediately so that shared serial ports are released.
-            telemetryCheckState();
-            mspSerialAllocatePorts();
+            bool telemetryStateChanged = telemetryCheckState();
+
+            if (telemetryStateChanged) {
+                mspSerialAllocatePorts();
+            }
         }
     }
 #endif
@@ -620,11 +616,14 @@ void filterRc(void){
     uint16_t rxRefreshRate;
 
     // Set RC refresh rate for sampling and channels to filter
-    initRxRefreshRate(&rxRefreshRate);
-
-    rcInterpolationFactor = rxRefreshRate / filteredCycleTime + 1;
+    rxRefreshRate = rxGetRefreshRate();
 
     if (isRXDataNew) {
+
+        rxRefreshRate = constrain(getTaskDeltaTime(TASK_RX), 1000, 20000) + 1000; // Add slight overhead to prevent ramps
+
+        rcInterpolationFactor = rxRefreshRate / targetPidLooptime + 1;
+
         for (int channel=0; channel < 4; channel++) {
             deltaRC[channel] = rcCommand[channel] -  (lastCommand[channel] - deltaRC[channel] * factor / rcInterpolationFactor);
             lastCommand[channel] = rcCommand[channel];
@@ -646,39 +645,54 @@ void filterRc(void){
     }
 }
 
-#if defined(BARO) || defined(SONAR)
-static bool haveUpdatedRcCommandsOnce = false;
-#endif
-
-void taskMainPidLoop(void)
+void processRcCommand(void)
 {
-    cycleTime = getTaskDeltaTime(TASK_SELF);
-    dT = (float)cycleTime * 0.000001f;
-
-    // Calculate average cycle time and average jitter
-    filteredCycleTime = pt1FilterApply4(&filteredCycleTimeState, cycleTime, 1, dT);
-
-#ifdef DEBUG_CYCLE_TIME
-    debug[0] = cycleTime;
-    debug[1] = cycleTime - filteredCycleTime;
-#endif
-
-    imuUpdateGyroAndAttitude();
-
-    updateRcCommands(); // this must be called here since applyAltHold directly manipulates rcCommands[]
-
     if (rxConfig()->rcSmoothing) {
         filterRc();
     }
+}
 
-#if defined(BARO) || defined(SONAR)
-    haveUpdatedRcCommandsOnce = true;
-#endif
+void subTaskPidController(void)
+{
+    const uint32_t startTime = micros();
+
+    // PID - note this is function pointer set by setPIDController()
+    pidLuxFloat(
+        pidProfile(),
+        currentControlRateProfile,
+        imuConfig()->max_angle_inclination,
+        &accelerometerConfig()->accelerometerTrims,
+        rxConfig()
+    );
+
+    if (debugMode == DEBUG_PIDLOOP) {debug[2] = micros() - startTime;}
+}
+
+void subTaskMainSubprocesses(void)
+{
+    const uint32_t startTime = micros();
 
     // Read out gyro temperature. can use it for something somewhere. maybe get MCU temperature instead? lots of fun possibilities.
     if (gyro.temperature) {
         gyro.temperature(&telemTemperature1);
     }
+
+#ifdef GTUNE
+        updateGtuneState();
+#endif
+
+#if defined(BARO) || defined(SONAR)
+        // FIXME outdated comments?
+        // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
+        // this must be called here since applyAltHold directly manipulates rcCommands[]
+        updateRcCommands();
+
+        if (sensors(SENSOR_BARO) || sensors(SENSOR_SONAR)) {
+            if (FLIGHT_MODE(BARO_MODE) || FLIGHT_MODE(SONAR_MODE)) {
+                applyAltHold();
+            }
+        }
+#endif
 
 #ifdef MAG
         if (sensors(SENSOR_MAG)) {
@@ -686,17 +700,6 @@ void taskMainPidLoop(void)
         }
 #endif
 
-#ifdef GTUNE
-        updateGtuneState();
-#endif
-
-#if defined(BARO) || defined(SONAR)
-        if (sensors(SENSOR_BARO) || sensors(SENSOR_SONAR)) {
-            if (FLIGHT_MODE(BARO_MODE) || FLIGHT_MODE(SONAR_MODE)) {
-                applyAltHold();
-            }
-        }
-#endif
 
     // If we're armed, at minimum throttle, and we do arming via the
     // sticks, do not process yaw input from the rx.  We do this so the
@@ -718,6 +721,8 @@ void taskMainPidLoop(void)
         rcCommand[THROTTLE] += calculateThrottleAngleCorrection(throttleCorrectionConfig()->throttle_correction_value);
     }
 
+    processRcCommand();
+
 #ifdef GPS
     if (sensors(SENSOR_GPS)) {
         if ((FLIGHT_MODE(GPS_HOME_MODE) || FLIGHT_MODE(GPS_HOLD_MODE)) && STATE(GPS_FIX_HOME)) {
@@ -726,14 +731,28 @@ void taskMainPidLoop(void)
     }
 #endif
 
-    // PID - note this is function pointer set by setPIDController()
-    pid_controller(
-        pidProfile(),
-        currentControlRateProfile,
-        imuConfig()->max_angle_inclination,
-        &accelerometerConfig()->accelerometerTrims,
-        rxConfig()
-    );
+#ifdef USE_SDCARD
+        afatfs_poll();
+#endif
+
+#ifdef BLACKBOX
+    if (!cliMode && feature(FEATURE_BLACKBOX)) {
+        handleBlackbox();
+    }
+#endif
+    if (debugMode == DEBUG_PIDLOOP) {debug[1] = micros() - startTime;}
+}
+
+void subTaskMotorUpdate(void)
+{
+    const uint32_t startTime = micros();
+    if (debugMode == DEBUG_CYCLETIME) {
+        static uint32_t previousMotorUpdateTime;
+        const uint32_t currentDeltaTime = startTime - previousMotorUpdateTime;
+        debug[2] = currentDeltaTime;
+        debug[3] = currentDeltaTime - targetPidLooptime;
+        previousMotorUpdateTime = startTime;
+    }
 
     mixTable();
 
@@ -745,38 +764,107 @@ void taskMainPidLoop(void)
     if (motorControlEnable) {
         writeMotors();
     }
-
-#ifdef USE_SDCARD
-        afatfs_poll();
-#endif
-
-#ifdef BLACKBOX
-    if (!cliMode && feature(FEATURE_BLACKBOX)) {
-        handleBlackbox();
-    }
-#endif
+    if (debugMode == DEBUG_PIDLOOP) {debug[3] = micros() - startTime;}
 }
 
-// Function for loop trigger
-void taskMainPidLoopChecker(void) {
-    // getTaskDeltaTime() returns delta time freezed at the moment of entering the scheduler. currentTime is freezed at the very same point.
-    // To make busy-waiting timeout work we need to account for time spent within busy-waiting loop
-    uint32_t currentDeltaTime = getTaskDeltaTime(TASK_SELF);
+uint32_t gyroUpdateAt = 0;
+uint32_t gyroIntPeriod = 0;
 
-    if (imuConfig()->gyroSync) {
-        while (1) {
-            if (gyroSyncCheckUpdate() || ((currentDeltaTime + (micros() - currentTime)) >= (targetLooptime + GYRO_WATCHDOG_DELAY))) {
-                break;
-            }
+#define MAX_SYNC_PERIOD_ERROR 5
+
+bool shouldProcessGyro(void)
+{
+    if (gyroConfig()->gyro_sync) {
+        bool sync = gyroSyncIsDataReady();
+
+        if (sync && debugMode == DEBUG_GYRO_SYNC) {
+            debug[1]++;
         }
+
+        return sync;
     }
 
-    taskMainPidLoop();
+    int32_t diff = currentTime - gyroUpdateAt;
+    bool timeout = (diff >= 0);
+
+    return timeout;
+}
+
+bool taskGyroCheck(uint32_t currentDeltaTime)
+{
+    UNUSED(currentDeltaTime);
+    return shouldProcessGyro();
+}
+
+uint8_t gyroReadyCounter = 0;
+
+void taskGyro(void)
+{
+    gyroUpdate();
+    gyroUpdateAt += US_FROM_HZ(gyro.sampleFrequencyHz);
+    gyroReadyCounter++;
+
+    gyroDeltaUs = getTaskDeltaTime(TASK_SELF);
+
+    if (debugMode == DEBUG_CYCLETIME) {
+        debug[0] = gyroDeltaUs;
+        debug[1] = averageSystemLoadPercent;
+    }
+
+    if (debugMode == DEBUG_GYRO_SYNC) {
+        debug[0] = gyroDeltaUs;
+    }
+}
+
+bool taskPidCheck(uint32_t currentDeltaTime)
+{
+    if (gyroReadyCounter == 0) {
+        return false;
+    }
+
+    bool shouldRunPid = false;
+    if (gyroConfig()->gyro_sync) {
+        shouldRunPid = gyroReadyCounter >= gyroConfig()->pid_process_denom;
+    }
+    shouldRunPid |= currentDeltaTime >= targetPidLooptime;
+
+    if (!shouldRunPid) {
+        return false;
+    }
+
+    return true;
+}
+
+void taskPid(void)
+{
+    gyroReadyCounter = 0;
+
+    static uint32_t previousPidUpdateTime;
+    pidDeltaUs = currentTime - previousPidUpdateTime;
+    previousPidUpdateTime = currentTime;
+
+    if (debugMode == DEBUG_PIDLOOP) {
+        debug[0] = pidDeltaUs;
+    }
+
+    subTaskPidController();
+
+    subTaskMotorUpdate();
+    subTaskMainSubprocesses();
+
+    if (debugMode == DEBUG_GYRO_SYNC) {
+        debug[2] = pidDeltaUs;
+        debug[3]++;
+    }
 }
 
 void taskUpdateAccelerometer(void)
 {
     imuUpdateAccelerometer(&accelerometerConfig()->accelerometerTrims);
+}
+
+void taskUpdateAttitude(void) {
+    imuUpdateAttitude();
 }
 
 void taskHandleSerial(void)
@@ -807,27 +895,26 @@ void taskUpdateBattery(void)
     if (feature(FEATURE_VBAT)) {
         if (cmp32(currentTime, vbatLastServiced) >= VBATINTERVAL) {
             vbatLastServiced = currentTime;
-            updateBattery();
+
+            voltageMeterUpdate();
+            batteryUpdate();
         }
     }
 
-    if (feature(FEATURE_CURRENT_METER)) {
+    if (feature(FEATURE_AMPERAGE_METER)) {
         int32_t ibatTimeSinceLastServiced = cmp32(currentTime, ibatLastServiced);
 
         if (ibatTimeSinceLastServiced >= IBATINTERVAL) {
             ibatLastServiced = currentTime;
 
-            throttleStatus_e throttleStatus = calculateThrottleStatus(rxConfig(), rcControlsConfig()->deadband3d_throttle);
+            if (batteryConfig()->amperageMeterSource == AMPERAGE_METER_ADC) {
+                amperageUpdateMeter(ibatTimeSinceLastServiced);
+            } else {
+                throttleStatus_e throttleStatus = calculateThrottleStatus(rxConfig(), rcControlsConfig()->deadband3d_throttle);
+                bool throttleLowAndMotorStop = (throttleStatus == THROTTLE_LOW && feature(FEATURE_MOTOR_STOP));
+                int32_t throttleOffset = (int32_t)rcCommand[THROTTLE] - 1000;
 
-            switch(batteryConfig()->currentMeterType) {
-                case CURRENT_SENSOR_ADC:
-                    updateCurrentMeter(ibatTimeSinceLastServiced);
-                    break;
-                case CURRENT_SENSOR_VIRTUAL:
-                    updateVirtualCurrentMeter(ibatTimeSinceLastServiced, throttleStatus);
-                    break;
-                default:
-                    break;
+                amperageUpdateVirtualMeter(ibatTimeSinceLastServiced, ARMING_FLAG(ARMED), throttleLowAndMotorStop, throttleOffset);
             }
         }
     }
@@ -843,25 +930,24 @@ bool taskUpdateRxCheck(uint32_t currentDeltaTime)
 void taskUpdateRxMain(void)
 {
     processRx();
-    updateLEDs();
-
     isRXDataNew = true;
 
+#if !defined(BARO) && !defined(SONAR)
+    // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
+    updateRcCommands();
+#endif
+    updateLEDs();
+
 #ifdef BARO
-    // updateRcCommands() sets rcCommand[], updateAltHoldState depends on valid rcCommand[] data.
-    if (haveUpdatedRcCommandsOnce) {
-        if (sensors(SENSOR_BARO)) {
-            updateAltHoldState();
-        }
+    if (sensors(SENSOR_BARO)) {
+        updateAltHoldState();
     }
 #endif
 
 #ifdef SONAR
     // updateRcCommands() sets rcCommand[], updateAltHoldState depends on valid rcCommand[] data.
-    if (haveUpdatedRcCommandsOnce) {
-        if (sensors(SENSOR_SONAR)) {
-            updateSonarAltHoldState();
-        }
+    if (sensors(SENSOR_SONAR)) {
+        updateSonarAltHoldState();
     }
 #endif
 }
@@ -895,8 +981,10 @@ void taskUpdateCompass(void)
 void taskUpdateBaro(void)
 {
     if (sensors(SENSOR_BARO)) {
-        uint32_t newDeadline = baroUpdate();
-        rescheduleTask(TASK_SELF, newDeadline);
+        const uint32_t newDeadline = baroUpdate();
+        if (newDeadline != 0) {
+            rescheduleTask(TASK_SELF, newDeadline);
+        }
     }
 }
 #endif

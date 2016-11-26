@@ -21,6 +21,8 @@
 
 #include <platform.h>
 
+#include "build/build_config.h"
+
 #include "config/parameter_group.h"
 
 #include "drivers/dma.h"
@@ -69,26 +71,25 @@ static volatile uint8_t xBusFrame[XBUS_MAX_FRAME_SIZE];
 static uint16_t xBusChannelData[XBUS_RJ01_CHANNEL_COUNT];
 
 static void xBusDataReceive(uint16_t c);
-static uint16_t xBusReadRawRC(rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan);
+static uint16_t xBusReadRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan);
+uint8_t xBusFrameStatus(void);
 
-bool xBusInit(rxRuntimeConfig_t *rxRuntimeConfig, rcReadRawDataPtr *callback)
+bool xBusInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig)
 {
-    uint32_t baudRate;
-
+    UNUSED(rxConfig);
 
     rxRuntimeConfig->channelCount = XBUS_RJ01_CHANNEL_COUNT;
+    rxRuntimeConfig->rxRefreshRate = 11000;
+
+    rxRuntimeConfig->rcReadRawFn = xBusReadRawRC;
+    rxRuntimeConfig->rcFrameStatusFn = xBusFrameStatus;
+
     xBusFrameReceived = false;
     xBusDataIncoming = false;
     xBusFramePosition = 0;
-    baudRate = XBUS_RJ01_BAUDRATE;
+    const uint32_t baudRate = XBUS_RJ01_BAUDRATE;
     xBusChannelCount = XBUS_RJ01_CHANNEL_COUNT;
     
-    
-
-    if (callback) {
-        *callback = xBusReadRawRC;
-    }
-
     serialPortConfig_t *portConfig = findSerialPortConfig(FUNCTION_RX_SERIAL);
     if (!portConfig) {
         return false;
@@ -244,7 +245,7 @@ static void xBusDataReceive(uint16_t c)
 uint8_t xBusFrameStatus(void)
 {
     if (!xBusFrameReceived) {
-        return SERIAL_RX_FRAME_PENDING;
+        return RX_FRAME_PENDING;
     }
 
     xBusUnpackRJ01Frame();
@@ -254,10 +255,10 @@ uint8_t xBusFrameStatus(void)
 
     xBusFrameReceived = false;
 
-    return SERIAL_RX_FRAME_COMPLETE;
+    return RX_FRAME_COMPLETE;
 }
 
-static uint16_t xBusReadRawRC(rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan)
+static uint16_t xBusReadRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan)
 {
     uint16_t data;
 

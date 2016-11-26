@@ -51,44 +51,13 @@ If you are getting oscillations starting at say 3/4 throttle, set `tpa_breakpoin
 
 ## PID controllers
 
-Cleanflight has 3 built-in PID controllers which each have a different flight behavior. Each controller requires different PID settings for best performance, so if you tune your craft using one PID controller, those settings will likely not work well on any of the other controllers. In Cleanflight v1.13.0 the MWREWRITE and LUX PID controllers were equalised so that the same PID settings can be used with those two PID controllers (subject to a small margin of error).
-
-You can change between PID controllers by running `set pid_controller=x` on the CLI tab of the Cleanflight Configurator, where `x` is the controller you want to use. Please read these notes first before trying one out.
-
-Note that older Cleanflight versions had 6 pid controllers, experimental and old ones were removed in Cleanflight version 1.11.0 (API version 1.14.0).
-
-### PID controller "MW23"
-
-This PID Controller is a direct port of the PID controller from MultiWii 2.3 and later.
-
-The algorithm handles roll and pitch differently to yaw. Users with problems on yaw authority should try this one.
-
-In *Horizon* and *Angle* modes, this controller uses both the LEVEL "P" and "I" settings in order to tune the  auto-leveling corrections in a similar way to the way that P and I settings are applied to roll and yaw axes in the *Acro* flight modes. The LEVEL "D" term is used as a limiter to constrain the maximum correction applied by the LEVEL "P" term.
-
-Cleanflight 1.12.0 changed the default value for `P_Level` from 90 to 20 because MWREWRITE became the default PID controller. If you use MW23 then try setting this to 90 before flying.
-
-### PID controller "MWREWRITE"
-
-This is the default PID controller for Cleanflight v1.12.0 and later versions.
-
-This is a newer PID controller that is derived from the one in MultiWii 2.3 and later. It works better from all accounts, and fixes some inherent problems in the way the old one worked. From reports, tuning is apparently easier, and it tolerates a wider range of PID values well.
-
-In *Angle* mode, this controller uses the LEVEL "P" PID setting to decide how strong the auto-level correction should be.
-
-Cleanflight 1.12.0 changed the default value for `p_level` to 20. This is the recommended value for the MWREWRITE PID controller  which provides a stable flight in *Angle* mode.  The old default value was 90 which provided a very unstable flight for some users with this pid controller.
-
-In *Horizon* mode, this controller uses the LEVEL "I" PID setting to decide how much auto-level correction should be applied. Level "I" term: Strength of horizon auto-level. Value of 0.030 in the configurator equals to 3.0 for `i_level`.
-Level "D" term: Strength of horizon transition. 0 is more stick travel on level and 255 is more rate mode what means very narrow angle of leveling.
-
-### PID controller "LUX"
+Cleanflight 1.x had experimental pid controllers, for cleanflight 2.0 there is only one.
+ 
+### PID controller "LUXFloat"
 
 This is a new floating point based PID controller. MW23 and MWREWRITE use integer arithmetic, which was faster in the days of the slower 8-bit MultiWii controllers, but is less precise.
 
-In Cleanflight v1.13 the LUX PID controller was changed so that it uses the same PID settings as MWREWRITE.
-
 This controller has code that attempts to compensate for variations in the looptime, which should mean that the PIDs don't have to be retuned when the looptime setting changes.
-
-There were initially some problems with *Horizon* mode, and sluggishness in *Acro* mode, that were recently fixed by [nebbian](https://github.com/nebbian) in v1.6.0.
 
 It is the first PID Controller designed for 32-bit processors and not derived from MultiWii.
 
@@ -100,23 +69,23 @@ The transition between self-leveling and acro behavior in *Horizon* mode is cont
 
 For example, at a setting of "100" for sensitivity horizon, 100% self-leveling strength will be applied at center stick, 50% self-leveling will be applied at 50% stick, and no self-leveling will be applied at 100% stick. If sensitivity is decreased to 75, 100% self-leveling will be applied at center stick, 50% will be applied at 63% stick, and no self-leveling will be applied at 75% stick and onwards.
 
+See below for descriptions of the Horizon Mode Commands.
+
 ## RC rate, Pitch and Roll Rates (P/R rate before they were separated), and Yaw rate
 
 ### RC Rate
 
 An overall multiplier on the RC stick inputs for pitch, roll, and yaw.
 
-On PID Controller MW23 can be used to set the "feel" around center stick for small control movements. (RC Expo also affects this). For PID Controllers MWREWRITE and LUX, this basically sets the baseline stick sensitivity.
+This basically sets the baseline stick sensitivity.
 
 ### Pitch and Roll rates
 
-In PID Controller MW23 the affect of the PID error terms for P and D are gradually lessened as the control sticks are moved away from center, ie 0.3 rate gives a 30% reduction of those terms at full throw, effectively making the stabilizing effect of the PID controller less at stick 90. This results in faster rotation rates. So for these controllers, you can set center stick sensitivity to control movement with RC rate above, and yet have much faster rotation rates at stick extremes.
-
-For PID Controllers MWREWRITE and LUX, this is an multiplier on overall stick sensitivity, like RC rate, but for roll and pitch independently. Stablility (to outside factors like turbulence) is not reduced at stick extremes. A zero value is no increase in stick sensitivity over that set by RC rate above. Higher values increases stick sensitivity across the entire stick movement range.
+This is an multiplier on overall stick sensitivity, like RC rate, but for roll and pitch independently. Stablility (to outside factors like turbulence) is not reduced at stick extremes. A zero value is no increase in stick sensitivity over that set by RC rate above. Higher values increases stick sensitivity across the entire stick movement range.
 
 ### Yaw Rate
 
-In PID Controllers MWREWRITE and LUX, it acts as a stick sensitivity multiplier, as explained above.
+It acts as a stick sensitivity multiplier, as explained above.
 
 ### Filters
 
@@ -125,3 +94,19 @@ In PID Controllers MWREWRITE and LUX, it acts as a stick sensitivity multiplier,
 `gyro_soft_lpf` is an IIR (Infinite Impulse Response) software low-pass filter that can be configured to any desired frequency. If set to a value above zero it is active. It works after the hardware filter on the gyro (in the FC code) and further reduces noise. The two filters in series have twice the cut rate of one alone. There's not a lot of sense running `gyro_soft_lpf` at a value above `gyro_lpf`. If used, it is typically set about half the hardware filter rate to enhance the cut of higher frequencies before the PID calculations. Frequencies above 100Hz are of no interest to us from a flight control perspective - they can and should be removed from the signal before it gets to the PID calculation stage. 
 
 `dterm_cut_hz` is an IIR software low-pass filter that can be configured to any desired frequency. It works after the gyro_cut filters and specifically filters only the D term data. D term data is frequency dependent, the higher the frequency, the greater the computed D term value. This filter is required if despite the gyro filtering there remains excessive D term noise. Typically it needs to be set quite low because D term noise is a major problem with typical IIR filters. If set too low the phase shift in D term reduces the effectiveness of D term in controlling stop wobble, so this value needs some care when varying it. Again blackbox recording is needed to properly optimise the value for this filter.
+
+### Horizon Mode Commands
+
+The CLI commands `horizon_tilt_effect` and `horizon_tilt_mode` control the effect the current inclination has on self-leveling in the Horizon flight mode. (The current inclination is the number of degrees of pitch or roll that the vehicle is away from level, whichever is greater).
+
+`horizon_tilt_effect`: Controls the effect the current inclination (tilt) has on self-leveling in the Horizon flight mode. Larger values result in less self-leveling (more "acro") as the tilt of the vehicle increases. The default value of 75 provides good performance when doing large loops and fast-forward flight. With a value of 0 the strength of the self-leveling would be solely dependent on the stick position.
+
+`horizon_tilt_mode` SAFE|EXPERT: Sets the performance mode for 'horizon_tilt_effect'
+
+SAFE = leveling always active when sticks centered:
+This is the "safer" range because the self-leveling is always active when the sticks are centered. So, when the vehicle is upside down (180 degrees) and the sticks are then centered, the vehicle will immediately be self-leveled to upright and flat. (Note that after this kind of very-fast 180-degree self-leveling, the heading of the vehicle can be unpredictable.)
+
+EXPERT = leveling can be totally off when inverted:
+In this range, the inclination (tilt) of the vehicle can fully "override" the self-leveling. In this mode, when the 'horizon_tilt_effect' parameter is set to around 75, and the vehicle is upside down (180 degrees) and the sticks are then centered, the vehicle is not self-leveled. This can be desirable for performing more-acrobatic maneuvers and potentially for 3D-mode flying.
+
+The 'horizon_tilt_effect' and 'horizon_tilt_mode' values are separate for each profile.

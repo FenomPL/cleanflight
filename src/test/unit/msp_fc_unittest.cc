@@ -32,6 +32,7 @@ extern "C" {
     #include "common/maths.h"
     #include "common/streambuf.h"
     #include "common/utils.h"
+    #include "common/filter.h"
 
     #include "config/parameter_group.h"
     #include "config/config_eeprom.h"
@@ -53,12 +54,13 @@ extern "C" {
     #include "io/gps.h"
     #include "io/gimbal.h"
     #include "io/ledstrip.h"
-    #include "io/motor_and_servo.h"
+    #include "io/motors.h"
     #include "io/transponder_ir.h"
     #include "io/serial.h"
 
     #include "msp/msp_protocol.h"
     #include "msp/msp.h"
+    #include "msp/msp_server.h"
     #include "msp/msp_serial.h"
 
     #include "telemetry/telemetry.h"
@@ -66,10 +68,13 @@ extern "C" {
 
     #include "sensors/sensors.h"
     #include "sensors/boardalignment.h"
+    #include "sensors/voltage.h"
+    #include "sensors/amperage.h"
     #include "sensors/battery.h"
     #include "sensors/acceleration.h"
     #include "sensors/barometer.h"
     #include "sensors/compass.h"
+    #include "sensors/gyro.h"
 
     #include "flight/mixer.h"
     #include "flight/servos.h"
@@ -81,7 +86,6 @@ extern "C" {
     #include "config/parameter_group_ids.h"
     #include "fc/runtime_config.h"
     #include "config/profile.h"
-
 }
 
 #include "unittest_macros.h"
@@ -89,9 +93,13 @@ extern "C" {
 
 
 extern "C" {
-    PG_REGISTER(motorAndServoConfig_t, motorAndServoConfig, PG_MOTOR_AND_SERVO_CONFIG, 0);
+    PG_REGISTER(mspServerConfig_t, mspServerConfig, PG_MSP_SERVER_CONFIG, 0);
+    PG_REGISTER(motorConfig_t, motorConfig, PG_MOTOR_CONFIG, 0);
     PG_REGISTER(sensorAlignmentConfig_t, sensorAlignmentConfig, PG_SENSOR_ALIGNMENT_CONFIG, 0);
     PG_REGISTER(batteryConfig_t, batteryConfig, PG_BATTERY_CONFIG, 0);
+    PG_REGISTER_ARR(voltageMeterConfig_t, MAX_VOLTAGE_METERS, voltageMeterConfig, PG_VOLTAGE_METER_CONFIG, 0);
+    PG_REGISTER_ARR(amperageMeterConfig_t, MAX_AMPERAGE_METERS, amperageMeterConfig, PG_AMPERAGE_METER_CONFIG, 0);
+
     PG_REGISTER(armingConfig_t, armingConfig, PG_ARMING_CONFIG, 0);
     PG_REGISTER(transponderConfig_t, transponderConfig, PG_TRANSPONDER_CONFIG, 0);
     PG_REGISTER(mixerConfig_t, mixerConfig, PG_MIXER_CONFIG, 0);
@@ -99,6 +107,7 @@ extern "C" {
     PG_REGISTER_ARR(servoMixer_t, MAX_SERVO_RULES, customServoMixer, PG_SERVO_MIXER, 0);
     PG_REGISTER(failsafeConfig_t, failsafeConfig, PG_FAILSAFE_CONFIG, 0);
     PG_REGISTER(imuConfig_t, imuConfig, PG_IMU_CONFIG, 0);
+    PG_REGISTER(gyroConfig_t, gyroConfig, PG_GYRO_CONFIG, 0);
     PG_REGISTER(rxConfig_t, rxConfig, PG_RX_CONFIG, 0);
     PG_REGISTER_ARR(rxFailsafeChannelConfig_t, MAX_SUPPORTED_RC_CHANNEL_COUNT, failsafeChannelConfigs, PG_FAILSAFE_CHANNEL_CONFIG, 0);
     PG_REGISTER_ARR(rxChannelRangeConfiguration_t, NON_AUX_CHANNEL_COUNT, channelRanges, PG_CHANNEL_RANGE_CONFIG, 0);
@@ -206,33 +215,6 @@ TEST_F(MspTest, TestMsp_FC_VERSION)
     EXPECT_EQ(FC_VERSION_PATCH_LEVEL, rbuf[2]);
 }
 
-TEST_F(MspTest, TestMsp_PID_CONTROLLER)
-{
-    pgActivateProfile(0);
-    pidProfile()->pidController = PID_CONTROLLER_MWREWRITE;
-
-    cmd.cmd = MSP_PID_CONTROLLER;
-
-    EXPECT_GT(mspProcessCommand(&cmd, &reply), 0);
-
-    EXPECT_EQ(1, reply.buf.ptr - rbuf) << "Reply size";
-    EXPECT_EQ(MSP_PID_CONTROLLER, reply.cmd);
-    EXPECT_EQ(PID_CONTROLLER_MWREWRITE, rbuf[0]);
-}
-
-TEST_F(MspTest, TestMsp_SET_PID_CONTROLLER)
-{
-    // set the pidController to a different value so we can check if it gets read back properly
-    pidProfile()->pidController = PID_CONTROLLER_LUX_FLOAT;
-
-    cmd.cmd = MSP_SET_PID_CONTROLLER;
-    *cmd.buf.end++ = PID_CONTROLLER_MWREWRITE;
-
-    EXPECT_GT(mspProcessCommand(&cmd, &reply), 0);
-
-    EXPECT_EQ(PID_CONTROLLER_MWREWRITE, pidProfile()->pidController);
-}
-
 TEST_F(MspTest, TestMsp_PID)
 {
     // check the buffer is big enough for the data to read in
@@ -269,7 +251,7 @@ TEST_F(MspTest, TestMsp_PID)
 
     pgActivateProfile(0);
 
-    pidProfile()->pidController = PID_CONTROLLER_MWREWRITE;
+    pidProfile()->pidController = 0;
     pidProfile()->P8[PIDROLL] = P8_ROLL;
     pidProfile()->I8[PIDROLL] = I8_ROLL;
     pidProfile()->D8[PIDROLL] = D8_ROLL;
@@ -397,7 +379,7 @@ TEST_F(MspTest, TestMspCommands)
         MSP_MODE_RANGES,                // 34    //out message         Returns all mode ranges
         MSP_FEATURE,                    // 36
         MSP_BOARD_ALIGNMENT,            // 38
-        MSP_CURRENT_METER_CONFIG,       // 40
+        MSP_AMPERAGE_METER_CONFIG,       // 40
         MSP_MIXER,                      // 42
         MSP_RX_CONFIG,                  // 44
         MSP_LED_COLORS,                 // 46
@@ -408,11 +390,9 @@ TEST_F(MspTest, TestMspCommands)
 //!! not tested        MSP_CF_SERIAL_CONFIG,           // 54
         MSP_VOLTAGE_METER_CONFIG,       // 56
         MSP_SONAR_ALTITUDE,             // 58 //out message get sonar altitude [cm]
-        MSP_PID_CONTROLLER,             // 59
         MSP_ARMING_CONFIG,              // 61 //out message         Returns auto_disarm_delay and disarm_kill_switch parameters
         MSP_DATAFLASH_SUMMARY,          // 70 //out message - get description of dataflash chip
 //!! not tested       MSP_DATAFLASH_READ,             // 71 //out message - get content of dataflash chip
-        MSP_LOOP_TIME,                  // 73 //out message         Returns FC cycle time i.e looptime parameter
         MSP_FAILSAFE_CONFIG,            // 75 //out message         Returns FC Fail-Safe settings
         MSP_RXFAIL_CONFIG,              // 77 //out message         Returns RXFAIL settings
         MSP_SDCARD_SUMMARY,             // 79 //out message         Get the state of the SD card
@@ -422,8 +402,6 @@ TEST_F(MspTest, TestMspCommands)
         MSP_SET_LED_STRIP_MODECOLOR,    // 86 //out message         Set LED strip mode_color settings
         // Baseflight MSP commands (if enabled they exist in Cleanflight)
         MSP_RX_MAP,                     // 64 //out message get channel map (also returns number of channels total)
-        // DEPRECATED - DO NOT USE "MSP_BF_CONFIG" and MSP_SET_BF_CONFIG.  In Cleanflight, isolated commands already exist and should be used instead.
-        MSP_BF_CONFIG,                  // 66 //out message baseflight-specific settings that aren't covered elsewhere
         // DEPRECATED - Use MSP_BUILD_INFO instead
         MSP_BF_BUILD_INFO,              // 69 //out message build date as well as some space for future expansion
         // Multwii original MSP commands
@@ -443,7 +421,6 @@ TEST_F(MspTest, TestMspCommands)
         MSP_PID,                 // 112    //out message         P I D coeff (9 are used currently)
 //!! not implemented in serial_msp.c      MSP_BOX,                 // 113    //out message         BOX setup (number is dependant of your setup)
         MSP_MISC,                // 114    //out message         powermeter trig
-        MSP_MOTOR_PINS,          // 115    //out message         which pins are in use for motors & servos, for GUI
         MSP_BOXNAMES,            // 116    //out message         the aux switch names
         MSP_PIDNAMES,            // 117    //out message         the PID names
         MSP_WP,                  // 118    //out message         get a WP, WP# is in the payload, returns (WP#, lat, lon, alt, flags) WP#0-home, WP#16-poshold
@@ -457,7 +434,6 @@ TEST_F(MspTest, TestMspCommands)
 //!! not implemented in serial_msp.c       MSP_DEBUGMSG,            // 253    //out message         debug string buffer
         MSP_DEBUG,               // 254    //out message         debug1,debug2,debug3,debug4
         // Additional commands that are not compatible with MultiWii
-        MSP_STATUS_EX,           // 150    //out message         cycletime, errors_count, CPU load, sensor present etc
         MSP_UID,                 // 160    //out message         Unique device ID
         MSP_GPSSVINFO,           // 164    //out message         get Signal Strength (only U-Blox)
         MSP_ACC_TRIM,            // 240    //out message         get acc angle trim values
@@ -476,6 +452,8 @@ TEST_F(MspTest, TestMspCommands)
 
 // STUBS
 extern "C" {
+amperageMeter_t amperageMeter;
+voltageMeterState_t voltageMeter;
 //
 mspPostProcessFuncPtr mspPostProcessFn = NULL;
 // from acceleration.c
@@ -537,8 +515,9 @@ void stopMotors(void) {}
 void loadCustomServoMixer(void) {}
 // from msp.c
 void rxMspFrameReceive(uint16_t *, int ) {}
-// from mw.c
-uint16_t cycleTime = 0;         // this is the number in micro second to achieve a full loop, it can differ a little and is taken into account in the PID loop
+// from cleanflight_fc.c
+uint16_t pidDeltaUs = 0;
+uint16_t gyroDeltaUs = 0;
 int16_t magHold;
 // from navigation.c
 int32_t GPS_home[2];
@@ -547,8 +526,6 @@ uint16_t GPS_distanceToHome;        // distance to home point in meters
 int16_t GPS_directionToHome;        // direction to home or hol point in degrees
 navigationMode_e nav_mode = NAV_MODE_NONE;    // Navigation mode
 void GPS_set_next_wp(int32_t *, int32_t *) {}
-// from pid.c
-void pidSetController(pidControllerType_e) {}
 // from rc_controls.c
 uint32_t rcModeActivationMask; // one bit per mode defined in boxId_e
 bool rcModeIsActive(boxId_e modeId) { return rcModeActivationMask & (1 << modeId); }
@@ -565,6 +542,8 @@ int16_t rcData[MAX_SUPPORTED_RC_CHANNEL_COUNT];     // interval [1000;2000]
 rxRuntimeConfig_t rxRuntimeConfig;
 // from system.c
 void delay(uint32_t ms) {UNUSED(ms);}
+uint32_t millis(void) { return 0;}
+
 // from system_stm32fN0x.c
 void systemReset(void) {}
 void systemResetToBootloader(void) {}
@@ -578,8 +557,16 @@ serialPort_t *uartOpen(USART_TypeDef *, serialReceiveCallbackPtr, uint32_t, port
 serialPort_t *openSoftSerial(softSerialPortIndex_e, serialReceiveCallbackPtr, uint32_t, portOptions_t) { return NULL; }
 void serialSetMode(serialPort_t *, portMode_t) {}
 
+void serialWrite(serialPort_t *, uint8_t) {}
+uint32_t serialRxBytesWaiting(const serialPort_t *) { return 0; }
+uint8_t serialRead(serialPort_t *) { return 0; }
+
 void mspSerialProcess() {}
 int mspClientProcessInCommand(mspPacket_t *) { return false; }
-bool isSerialTransmitBufferEmpty(serialPort_t *) { return true; }
+bool isSerialTransmitBufferEmpty(const serialPort_t *) { return true; }
+
+amperageMeter_t *getAmperageMeter(amperageMeter_e index) { UNUSED(index); return &amperageMeter; }
+batteryState_e getBatteryState(void) { return BATTERY_NOT_PRESENT; }
+voltageMeterState_t *getVoltageMeter(uint8_t ) { return &voltageMeter; }
 }
 

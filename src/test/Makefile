@@ -252,29 +252,11 @@ $(OBJECT_DIR)/flight/pid_luxfloat.o : \
 	@mkdir -p $(dir $@)
 	$(CC) $(C_FLAGS) $(TEST_CFLAGS) -DBLACKBOX -c $(USER_DIR)/flight/pid_luxfloat.c -o $@
 
-$(OBJECT_DIR)/flight/pid_mwrewrite.o : \
-	$(USER_DIR)/flight/pid_mwrewrite.c \
-	$(USER_DIR)/flight/pid.h \
-	$(GTEST_HEADERS)
-
-	@mkdir -p $(dir $@)
-	$(CC) $(C_FLAGS) $(TEST_CFLAGS) -DBLACKBOX -c $(USER_DIR)/flight/pid_mwrewrite.c -o $@
-
-$(OBJECT_DIR)/flight/pid_mw23.o : \
-	$(USER_DIR)/flight/pid_mw23.c \
-	$(USER_DIR)/flight/pid.h \
-	$(GTEST_HEADERS)
-
-	@mkdir -p $(dir $@)
-	$(CC) $(C_FLAGS) $(TEST_CFLAGS) -DBLACKBOX -c $(USER_DIR)/flight/pid_mw23.c -o $@
-
 $(OBJECT_DIR)/flight_pid_unittest.o : \
 	$(TEST_DIR)/flight_pid_unittest.cc \
 	$(USER_DIR)/flight/pid.h \
 	$(USER_DIR)/flight/pid.c \
 	$(USER_DIR)/flight/pid_luxfloat.c \
-	$(USER_DIR)/flight/pid_mwrewrite.c \
-	$(USER_DIR)/flight/pid_mw23.c \
 	$(GTEST_HEADERS)
 
 	@mkdir -p $(dir $@)
@@ -285,8 +267,6 @@ $(OBJECT_DIR)/flight_pid_unittest : \
 	$(OBJECT_DIR)/common/filter.o \
 	$(OBJECT_DIR)/flight/pid.o \
 	$(OBJECT_DIR)/flight/pid_luxfloat.o \
-	$(OBJECT_DIR)/flight/pid_mwrewrite.o \
-	$(OBJECT_DIR)/flight/pid_mw23.o \
 	$(OBJECT_DIR)/flight_pid_unittest.o \
 	$(OBJECT_DIR)/gtest_main.a
 
@@ -517,6 +497,20 @@ $(OBJECT_DIR)/ws2811_unittest : \
 
 	$(CXX) $(CXX_FLAGS) $^ -o $(OBJECT_DIR)/$@
 
+$(OBJECT_DIR)/nvic_unittest.o : \
+	$(TEST_DIR)/nvic_unittest.cc \
+	$(USER_DIR)/drivers/nvic.h \
+	$(GTEST_HEADERS)
+
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXX_FLAGS) $(TEST_CFLAGS) -c $(TEST_DIR)/nvic_unittest.cc -o $@
+
+$(OBJECT_DIR)/nvic_unittest : \
+	$(OBJECT_DIR)/nvic_unittest.o \
+	$(OBJECT_DIR)/gtest_main.a
+
+	$(CXX) $(CXX_FLAGS) $^ -o $(OBJECT_DIR)/$@
+
 $(OBJECT_DIR)/io/serial.o : \
 	$(USER_DIR)/io/serial.c \
 	$(USER_DIR)/io/serial.h \
@@ -597,6 +591,27 @@ $(OBJECT_DIR)/battery_unittest : \
 	$(OBJECT_DIR)/sensors/battery.o \
 	$(OBJECT_DIR)/common/maths.o \
 	$(OBJECT_DIR)/battery_unittest.o \
+	$(OBJECT_DIR)/gtest_main.a
+
+	$(CXX) $(CXX_FLAGS) $^ -o $@
+
+
+$(OBJECT_DIR)/sensors/voltage.o : $(USER_DIR)/sensors/voltage.c $(USER_DIR)/sensors/voltage.h $(GTEST_HEADERS)
+	@mkdir -p $(dir $@)
+	$(CC) $(C_FLAGS) $(TEST_CFLAGS) -c $(USER_DIR)/sensors/voltage.c -o $@
+
+$(OBJECT_DIR)/voltage_unittest.o : \
+	$(TEST_DIR)/voltage_unittest.cc \
+	$(USER_DIR)/sensors/voltage.h \
+	$(GTEST_HEADERS)
+
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXX_FLAGS) $(TEST_CFLAGS) -c $< -o $@
+
+$(OBJECT_DIR)/voltage_unittest : \
+	$(OBJECT_DIR)/sensors/voltage.o \
+	$(OBJECT_DIR)/common/maths.o \
+	$(OBJECT_DIR)/voltage_unittest.o \
 	$(OBJECT_DIR)/gtest_main.a
 
 	$(CXX) $(CXX_FLAGS) $^ -o $@
@@ -954,6 +969,84 @@ $(OBJECT_DIR)/config_streamer_unittest : \
 	$(OBJECT_DIR)/gtest_main.a
 
 	$(CXX) $(CXX_FLAGS) $^ -o $(OBJECT_DIR)/$@
+
+
+$(OBJECT_DIR)/common/printf.o : \
+	$(USER_DIR)/common/printf.c \
+	$(USER_DIR)/common/printf.h \
+	$(GTEST_HEADERS)
+
+	@mkdir -p $(dir $@)
+	$(CC) $(C_FLAGS) $(TEST_CFLAGS) -c $(USER_DIR)/common/printf.c -o $@
+
+$(OBJECT_DIR)/osd/osd_screen.o : \
+	$(USER_DIR)/osd/osd_screen.c \
+	$(USER_DIR)/osd/osd_screen.h \
+	$(GTEST_HEADERS)
+
+	@mkdir -p $(dir $@)
+	$(CC) $(C_FLAGS) $(TEST_CFLAGS) -D'FLASH_SIZE = 128' -DSTM32F10X_MD -c $(USER_DIR)/osd/osd_screen.c -o $@
+
+$(OBJECT_DIR)/osd/osd_element.o : \
+	$(USER_DIR)/osd/osd_element.c \
+	$(USER_DIR)/osd/osd_element.h \
+	$(GTEST_HEADERS)
+
+	@mkdir -p $(dir $@)
+	$(CC) $(C_FLAGS) $(TEST_CFLAGS) -D'FLASH_SIZE = 128' -DSTM32F10X_MD -c $(USER_DIR)/osd/osd_element.c -o $@
+
+
+$(OBJECT_DIR)/osd/osd_element_render.o : \
+	$(USER_DIR)/osd/osd_element_render.c \
+	$(USER_DIR)/osd/osd_element_render.h \
+	$(GTEST_HEADERS)
+
+	@mkdir -p $(dir $@)
+	$(CC) $(C_FLAGS) $(TEST_CFLAGS) -D'FLASH_SIZE = 128' -DSTM32F10X_MD -c $(USER_DIR)/osd/osd_element_render.c -o $@
+
+$(OBJECT_DIR)/osd_screen_unittest.o : \
+	$(TEST_DIR)/osd_screen_unittest.cc \
+	$(USER_DIR)/osd/osd_screen.h \
+	$(GTEST_HEADERS)
+
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXX_FLAGS) $(TEST_CFLAGS) -c $(TEST_DIR)/osd_screen_unittest.cc -o $@
+
+$(OBJECT_DIR)/osd_screen_unittest : \
+	$(OBJECT_DIR)/common/printf.o \
+	$(OBJECT_DIR)/common/maths.o \
+	$(OBJECT_DIR)/common/typeconversion.o \
+	$(OBJECT_DIR)/osd/osd_screen.o \
+	$(OBJECT_DIR)/osd/osd_element.o \
+	$(OBJECT_DIR)/osd/osd_element_render.o \
+	$(OBJECT_DIR)/osd_screen_unittest.o \
+	$(OBJECT_DIR)/gtest_main.a
+
+	$(CXX) $(CXX_FLAGS) $^ -o $(OBJECT_DIR)/$@
+
+
+$(OBJECT_DIR)/telemetry/ibus.o : \
+	$(USER_DIR)/telemetry/ibus.c \
+	$(USER_DIR)/telemetry/ibus.h \
+	$(GTEST_HEADERS)
+
+	@mkdir -p $(dir $@)
+	$(CC) $(C_FLAGS) $(TEST_CFLAGS) -c $(USER_DIR)/telemetry/ibus.c -o $@
+
+$(OBJECT_DIR)/telemetry_ibus_unittest.o : \
+	$(TEST_DIR)/telemetry_ibus_unittest.cc \
+	$(GTEST_HEADERS)
+
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXX_FLAGS) $(TEST_CFLAGS) -c $(TEST_DIR)/telemetry_ibus_unittest.cc -o $@
+
+$(OBJECT_DIR)/telemetry_ibus_unittest : \
+	$(OBJECT_DIR)/telemetry/ibus.o \
+	$(OBJECT_DIR)/telemetry_ibus_unittest.o \
+	$(OBJECT_DIR)/gtest_main.a
+
+	$(CXX) $(CXX_FLAGS) $^ -o $(OBJECT_DIR)/$@
+
 
 ## test        : Build and run the Unit Tests
 test: $(TESTS:%=test-%)

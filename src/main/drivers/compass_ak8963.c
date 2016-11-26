@@ -20,9 +20,11 @@
 
 #include <math.h>
 
-#include "build/build_config.h"
-
 #include "platform.h"
+
+#ifdef USE_MAG_AK8963
+
+#include "build/build_config.h"
 
 #include "build/debug.h"
 
@@ -36,9 +38,6 @@
 #include "exti.h"
 #include "bus_i2c.h"
 #include "bus_spi.h"
-
-#include "sensors/boardalignment.h"
-#include "sensors/sensors.h"
 
 #include "sensor.h"
 #include "compass.h"
@@ -228,7 +227,7 @@ bool ak8963Detect(mag_t *mag)
     return false;
 }
 
-void ak8963Init()
+bool ak8963Init()
 {
     bool ack;
     UNUSED(ack);
@@ -261,6 +260,7 @@ void ak8963Init()
 #else
     ack = ak8963SensorWrite(AK8963_MAG_I2C_ADDRESS, AK8963_MAG_REG_CNTL, CNTL_MODE_ONCE);
 #endif
+    return true;
 }
 
 bool ak8963Read(int16_t *magData)
@@ -338,9 +338,9 @@ restart:
         return false;
     }
 
-    magData[X] = -(int16_t)(buf[1] << 8 | buf[0]) * magGain[X];
-    magData[Y] = -(int16_t)(buf[3] << 8 | buf[2]) * magGain[Y];
-    magData[Z] = -(int16_t)(buf[5] << 8 | buf[4]) * magGain[Z];
+    magData[X] = (int16_t)(buf[1] << 8 | buf[0]) * magGain[X];
+    magData[Y] = (int16_t)(buf[3] << 8 | buf[2]) * magGain[Y];
+    magData[Z] = (int16_t)(buf[5] << 8 | buf[4]) * magGain[Z];
 
 #if defined(USE_SPI) && defined(MPU9250_SPI_INSTANCE)
     state = CHECK_STATUS;
@@ -349,3 +349,4 @@ restart:
     return ak8963SensorWrite(AK8963_MAG_I2C_ADDRESS, AK8963_MAG_REG_CNTL, CNTL_MODE_ONCE); // start reading again
 #endif
 }
+#endif

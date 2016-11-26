@@ -108,6 +108,7 @@ uint32_t GPS_garbageByteCount = 0;
 // How many entries in gpsInitData array below
 #define GPS_INIT_ENTRIES (GPS_BAUDRATE_MAX + 1)
 #define GPS_BAUDRATE_CHANGE_DELAY (200)
+#define GPS_BOOT_DELAY          (2500)
 
 static serialPort_t *gpsPort;
 
@@ -365,6 +366,12 @@ void gpsInitHardware(void)
 
 void gpsThread(void)
 {
+    // Extra delay for at least 2 seconds after booting to give GPS time to initialise
+    if (!isMPUSoftReset() && (millis() < GPS_BOOT_DELAY)) {
+        sensorsClear(SENSOR_GPS);
+        DISABLE_STATE(GPS_FIX);
+        return;
+    }
     // read out available GPS bytes
     if (gpsPort) {
         while (serialRxBytesWaiting(gpsPort))
@@ -1043,6 +1050,16 @@ static bool gpsNewFrameUBLOX(uint8_t data)
     return parsed;
 }
 
+static void gpsHandlePassthrough(uint8_t data)
+{
+    gpsNewData(data);
+#ifdef DISPLAY
+    if (feature(FEATURE_DISPLAY)) {
+        updateDisplay();
+    }
+#endif
+}
+
 void gpsEnablePassthrough(serialPort_t *gpsPassthroughPort)
 {
     waitForSerialPortToFinishTransmitting(gpsPort);
@@ -1051,35 +1068,12 @@ void gpsEnablePassthrough(serialPort_t *gpsPassthroughPort)
     if(!(gpsPort->mode & MODE_TX))
         serialSetMode(gpsPort, gpsPort->mode | MODE_TX);
 
-    LED0_OFF;
-    LED1_OFF;
-
 #ifdef DISPLAY
     if (feature(FEATURE_DISPLAY)) {
         displayShowFixedPage(PAGE_GPS);
     }
 #endif
-    char c;
-    while(1) {
-        if (serialRxBytesWaiting(gpsPort)) {
-            LED0_ON;
-            c = serialRead(gpsPort);
-            gpsNewData(c);
-            serialWrite(gpsPassthroughPort, c);
-            LED0_OFF;
-        }
-        if (serialRxBytesWaiting(gpsPassthroughPort)) {
-            LED1_ON;
-            c = serialRead(gpsPassthroughPort);
-            serialWrite(gpsPort, c);
-            LED1_OFF;
-        }
-#ifdef DISPLAY
-        if (feature(FEATURE_DISPLAY)) {
-            updateDisplay();
-        }
-#endif
-    }
+    serialPassthrough(gpsPort, gpsPassthroughPort, &gpsHandlePassthrough, NULL);
 }
 
 void updateGpsIndicator(uint32_t currentTime)

@@ -52,6 +52,7 @@
 #include "io/gps.h"
 #include "rx/rx.h"
 
+#include "sensors/amperage.h"
 #include "sensors/battery.h"
 #include "sensors/sensors.h"
 
@@ -504,7 +505,7 @@ static void applyLedFixedLayers()
         hsvColor_t color = *getSC(LED_SCOLOR_BACKGROUND);
 
         int fn = ledGetFunction(ledConfig);
-        int hOffset = HSV_HUE_MAX;
+        int hOffset = HSV_HUE_MAX + 1;
 
         switch (fn) {
             case LED_FUNCTION_COLOR:
@@ -514,8 +515,11 @@ static void applyLedFixedLayers()
             case LED_FUNCTION_FLIGHT_MODE:
                 for (unsigned i = 0; i < ARRAYLEN(flightModeToLed); i++)
                     if (!flightModeToLed[i].flightMode || FLIGHT_MODE(flightModeToLed[i].flightMode)) {
-                        color = *getDirectionalModeColor(ledIndex, modeColors(flightModeToLed[i].ledMode));
-                        break; // stop on first match
+                        hsvColor_t *candidateColor = getDirectionalModeColor(ledIndex, modeColors(flightModeToLed[i].ledMode));
+                        if (candidateColor) {
+                            color = *candidateColor;
+                            break;
+                        }
                     }
                 break;
 
@@ -525,7 +529,7 @@ static void applyLedFixedLayers()
 
             case LED_FUNCTION_BATTERY:
                 color = HSV(RED);
-                hOffset += scaleRange(calculateBatteryCapacityRemainingPercentage(), 0, 100, -30, 120);
+                hOffset += scaleRange(batteryCapacityRemainingPercentage(), 0, 100, -30, 120);
                 break;
 
             case LED_FUNCTION_RSSI:

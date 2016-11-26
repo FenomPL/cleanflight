@@ -19,6 +19,9 @@
 
 #define TARGET_BOARD_IDENTIFIER "SDF3" // STM Discovery F3
 
+#define DEFAULT_PID_PROCESS_DENOM 1
+#define DEFAULT_GYRO_SAMPLE_HZ 2000
+
 #define LED0_GPIO   GPIOE
 #define LED0_PIN    Pin_8|Pin_12 // Blue LEDs - PE8/PE12
 #define LED0_PERIPHERAL RCC_AHBPeriph_GPIOE
@@ -65,7 +68,7 @@
 
 //#define USE_FLASHFS
 //#define USE_FLASH_M25P16
-
+//#define CUSTOM_FLASHCHIP
 //#define M25P16_CS_GPIO          GPIOB
 //#define M25P16_CS_PIN           GPIO_Pin_12
 //#define M25P16_SPI_INSTANCE     SPI2
@@ -119,6 +122,7 @@
 #define USE_UART5
 #define SERIAL_PORT_COUNT 6
 
+#define USE_UART1_TX_DMA
 #define UART1_TX_PIN        GPIO_Pin_9  // PA9
 #define UART1_RX_PIN        GPIO_Pin_10 // PA10
 #define UART1_GPIO          GPIOA
@@ -158,7 +162,7 @@
 #define ADC3_GPIO_PIN               GPIO_Pin_3
 #define ADC3_CHANNEL                ADC_Channel_9
 
-#define ADC_CURRENT     ADC_CHANNEL0
+#define ADC_AMPERAGE     ADC_CHANNEL0
 #define ADC_BATTERY     ADC_CHANNEL1
 #define ADC_RSSI        ADC_CHANNEL2
 #define ADC_EXTERNAL    ADC_CHANNEL3
@@ -181,8 +185,17 @@
 #define GPS
 #define GTUNE
 #define TELEMETRY
+#define TELEMETRY_IBUS
 #define SERIAL_RX
 #define USE_SERVOS
 #define USE_CLI
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
+
+// IO - 303 in 100pin package
+#define TARGET_IO_PORTA 0xffff
+#define TARGET_IO_PORTB 0xffff
+#define TARGET_IO_PORTC 0xffff
+#define TARGET_IO_PORTD 0xffff
+#define TARGET_IO_PORTE 0xffff
+#define TARGET_IO_PORTF 0x00ff

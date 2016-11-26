@@ -85,7 +85,7 @@ enum {
     MAP_TO_SERVO_OUTPUT,
 };
 
-#if defined(NAZE) || defined(OLIMEXINO) || defined(NAZE32PRO) || defined(STM32F3DISCOVERY) || defined(EUSTM32F103RC) || defined(PORT103R) || defined(PORT103V)
+#if defined(NAZE) || defined(NAZE32PRO) || defined(STM32F3DISCOVERY) || defined(PORT103R) || defined(PORT103V)
 static const uint16_t multiPPM[] = {
     PWM1  | (MAP_TO_PPM_INPUT << 8),     // PPM input
     PWM9  | (MAP_TO_MOTOR_OUTPUT << 8),      // Swap to servo if needed
@@ -707,12 +707,6 @@ pwmIOConfiguration_t *pwmInit(drv_pwm_config_t *init)
 
         const timerHardware_t *timerHardwarePtr = &timerHardware[timerIndex];
 
-#ifdef OLIMEXINO_UNCUT_LED2_E_JUMPER
-        // PWM2 is connected to LED2 on the board and cannot be connected unless you cut LED2_E
-        if (timerIndex == PWM2)
-            continue;
-#endif
-
         // skip UART ports
 #ifdef USE_UART2
         if (init->useUART2 && timerHardwarePtr->gpio == UART2_GPIO && (timerHardwarePtr->pin == UART2_TX_PIN || timerHardwarePtr->pin == UART2_RX_PIN))
@@ -739,7 +733,7 @@ pwmIOConfiguration_t *pwmInit(drv_pwm_config_t *init)
             continue;
 #endif
 
-#ifdef STM32F10X
+#if defined(STM32F10X) && defined(USE_I2C)
         // skip I2C ports if device 1 is selected
         if (I2C_DEVICE == I2CDEV_1 && timerHardwarePtr->gpio == GPIOB && (timerHardwarePtr->pin == Pin_6 || timerHardwarePtr->pin == Pin_7))
             continue;
@@ -779,18 +773,20 @@ pwmIOConfiguration_t *pwmInit(drv_pwm_config_t *init)
         }
 #endif
 
-#ifdef CURRENT_METER_ADC_GPIO
-        if (init->useCurrentMeterADC && timerHardwarePtr->gpio == CURRENT_METER_ADC_GPIO && timerHardwarePtr->pin == CURRENT_METER_ADC_GPIO_PIN) {
+#ifdef AMPERAGE_METER_ADC_GPIO
+        if (init->useCurrentMeterADC && timerHardwarePtr->gpio == AMPERAGE_METER_ADC_GPIO && timerHardwarePtr->pin == AMPERAGE_METER_ADC_GPIO_PIN) {
             continue;
         }
 #endif
 
 #ifdef SONAR
-        if (init->sonarGPIOConfig && timerHardwarePtr->gpio == init->sonarGPIOConfig->gpio &&
-            (
-                timerHardwarePtr->pin == init->sonarGPIOConfig->triggerPin ||
-                timerHardwarePtr->pin == init->sonarGPIOConfig->echoPin
-            )
+        if (init->sonarGPIOConfig &&
+          (
+            (timerHardwarePtr->gpio == init->sonarGPIOConfig->triggerGPIO
+               && timerHardwarePtr->pin == init->sonarGPIOConfig->triggerPin) ||
+            (timerHardwarePtr->gpio == init->sonarGPIOConfig->echoGPIO
+               && timerHardwarePtr->pin == init->sonarGPIOConfig->echoPin)
+          )
         ) {
             continue;
         }
@@ -814,52 +810,45 @@ pwmIOConfiguration_t *pwmInit(drv_pwm_config_t *init)
 #ifdef USE_SERVOS
         if (init->useServos && !init->airplane) {
 #if defined(NAZE)
-            // remap PWM9+10 as servos
             if ((timerIndex == PWM9 || timerIndex == PWM10) && timerHardwarePtr->tim == TIM1)
                 type = MAP_TO_SERVO_OUTPUT;
 #endif
 
 #if defined(COLIBRI_RACE) || defined(LUX_RACE)
-            // remap PWM1+2 as servos
             if ((timerIndex == PWM6 || timerIndex == PWM7 || timerIndex == PWM8 || timerIndex == PWM9) && timerHardwarePtr->tim == TIM2)
                 type = MAP_TO_SERVO_OUTPUT;
 #endif
 
 #if defined(CC3D)
-            // remap 10 as servo
             if (timerIndex == PWM10 && timerHardwarePtr->tim == TIM1)
                 type = MAP_TO_SERVO_OUTPUT;
 #endif
 
 #if defined(SPARKY)
-            // remap PWM1+2 as servos
             if ((timerIndex == PWM1 || timerIndex == PWM2) && timerHardwarePtr->tim == TIM15)
                 type = MAP_TO_SERVO_OUTPUT;
 #endif
 
 #if defined(SPRACINGF3)
-            // remap PWM15+16 as servos
             if ((timerIndex == PWM15 || timerIndex == PWM16) && timerHardwarePtr->tim == TIM15)
                 type = MAP_TO_SERVO_OUTPUT;
 #endif
 
 #if defined(SPRACINGF3MINI)
-            // remap PWM6+7 as servos
             if ((timerIndex == PWM6 || timerIndex == PWM7) && timerHardwarePtr->tim == TIM15)
                 type = MAP_TO_SERVO_OUTPUT;
 #endif
 
 #if defined(RCEXPLORERF3)
-            if (timerIndex == PWM2)
-            {
+            if (timerIndex == PWM2) {
                 type = MAP_TO_SERVO_OUTPUT;
             }
 #endif
 
 #if defined(SPRACINGF3EVO)
-            // remap PWM6+7 as servos
-            if ((timerIndex == PWM8 || timerIndex == PWM9) && timerHardwarePtr->tim == TIM3)
+            if ((timerIndex == PWM6 || timerIndex == PWM7 || timerIndex == PWM8 || timerIndex == PWM9) && timerHardwarePtr->tim == TIM3) {
                 type = MAP_TO_SERVO_OUTPUT;
+            }
 #endif
 
 #if defined(NAZE32PRO) || (defined(STM32F3DISCOVERY) && !defined(CHEBUZZF3))
@@ -895,6 +884,20 @@ pwmIOConfiguration_t *pwmInit(drv_pwm_config_t *init)
                 if (timerIndex >= PWM5 && timerIndex <= PWM8)
                     type = MAP_TO_SERVO_OUTPUT;
 #endif
+
+#if defined(SPRACINGF3EVO)
+            if ((timerIndex == PWM6 || timerIndex == PWM7 || timerIndex == PWM8 || timerIndex == PWM9) && timerHardwarePtr->tim == TIM3) {
+                type = MAP_TO_SERVO_OUTPUT;
+            }
+#endif
+
+#if defined(SPRACINGF3MINI)
+            if (((timerIndex == PWM6 || timerIndex == PWM7) && timerHardwarePtr->tim == TIM15)
+                || ((timerIndex == PWM8 || timerIndex == PWM9 || timerIndex == PWM10 || timerIndex == PWM11) && timerHardwarePtr->tim == TIM2)) {
+                type = MAP_TO_SERVO_OUTPUT;
+            }
+#endif
+
         }
 
 #endif // USE_SERVOS

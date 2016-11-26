@@ -18,6 +18,7 @@
 #pragma once
 
 #define TARGET_BOARD_IDENTIFIER "CLBR"
+#define COLIBRI_RACE_REV 2
 
 #define LED0_GPIO   GPIOC
 #define LED0_PIN    Pin_15
@@ -45,10 +46,15 @@
 #define USE_SPI_DEVICE_1
 
 #define SPI1_GPIO               GPIOB
+
+#if COLIBRI_RACE_REV > 1
+// later revision boards moved the GYRO NSS PIN
 #define SPI1_NSS_GPIO           GPIOA
 #define SPI1_NSS_PERIPHERAL     RCC_AHBPeriph_GPIOA
 #define SPI1_NSS_PIN            GPIO_Pin_4
 #define SPI1_NSS_PIN_SOURCE     GPIO_PinSource4
+#endif
+
 #define SPI1_GPIO_PERIPHERAL    RCC_AHBPeriph_GPIOB
 #define SPI1_SCK_PIN            GPIO_Pin_3
 #define SPI1_SCK_PIN_SOURCE     GPIO_PinSource3
@@ -58,8 +64,6 @@
 #define SPI1_MOSI_PIN_SOURCE    GPIO_PinSource5
 
 #define USABLE_TIMER_CHANNEL_COUNT 11
-
-#define EXTI_CALLBACK_HANDLER_COUNT 1 // MPU data ready
 
 #define GYRO
 #define USE_GYRO_MPU6500
@@ -93,6 +97,7 @@
 #define USE_UART3
 #define SERIAL_PORT_COUNT 4
 
+#define USE_UART1_TX_DMA
 #define UART1_TX_PIN        GPIO_Pin_4
 #define UART1_RX_PIN        GPIO_Pin_5
 #define UART1_GPIO          GPIOC
@@ -154,7 +159,7 @@
 #define ADC_CHANNEL_COUNT 4
 
 #define ADC_BATTERY     ADC_CHANNEL0
-#define ADC_CURRENT     ADC_CHANNEL1
+#define ADC_AMPERAGE     ADC_CHANNEL1
 #define ADC_RSSI        ADC_CHANNEL2
 #define ADC_EXTERNAL    ADC_CHANNEL3
 
@@ -188,7 +193,15 @@
 #define GPS
 #define GTUNE
 #define TELEMETRY
+#define TELEMETRY_IBUS
 #define SERIAL_RX
 #define USE_SERVOS
 #define USE_CLI
+#define USE_EXTI
 
+// IO - assuming 303 in 64pin package, TODO
+#define TARGET_IO_PORTA 0xffff
+#define TARGET_IO_PORTB 0xffff
+#define TARGET_IO_PORTC 0xffff
+#define TARGET_IO_PORTD (BIT(2))
+#define TARGET_IO_PORTF (BIT(0)|BIT(1)|BIT(4))

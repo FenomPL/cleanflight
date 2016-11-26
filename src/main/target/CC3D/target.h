@@ -49,6 +49,8 @@
 
 #define GYRO
 #define USE_GYRO_SPI_MPU6000
+#define DEFAULT_GYRO_SAMPLE_HZ      2000
+#define DEFAULT_PID_PROCESS_DENOM   1
 
 #define GYRO_MPU6000_ALIGN CW270_DEG
 
@@ -61,6 +63,7 @@
 #define BARO
 #define USE_BARO_MS5611
 #define USE_BARO_BMP085
+#define USE_BARO_BMP280
 
 // External I2C MAG
 #define MAG
@@ -75,8 +78,10 @@
 #define USE_VCP
 #define USE_UART1
 #define USE_UART3
-#define USE_SOFTSERIAL1
+//#define USE_SOFTSERIAL1
 #define SERIAL_PORT_COUNT 4
+
+#define USE_UART1_TX_DMA
 
 #define SOFTSERIAL_1_TIMER TIM3
 #define SOFTSERIAL_1_TIMER_TX_HARDWARE 1 // PWM 2
@@ -110,7 +115,7 @@
 
 #define ADC_CHANNEL_COUNT 3
 
-#define ADC_CURRENT     ADC_CHANNEL0
+#define ADC_AMPERAGE     ADC_CHANNEL0
 #define ADC_BATTERY     ADC_CHANNEL1
 #define ADC_RSSI        ADC_CHANNEL2
 
@@ -131,19 +136,23 @@
 #define SONAR_TRIGGER_GPIO          GPIOB
 #define SONAR_ECHO_PIN              Pin_0   // (PB0) - only 3.3v ( add a 1K Ohms resistor )
 #define SONAR_ECHO_GPIO             GPIOB
-#define SONAR_EXTI_LINE             EXTI_Line0
-#define SONAR_EXTI_PIN_SOURCE       GPIO_PinSource0
-#define SONAR_EXTI_IRQN             EXTI0_IRQn
+#define SONAR_TRIGGER_IO            PB5
+#define SONAR_ECHO_IO               PB1
 
-#define GPS
+//#define GPS
 #define BLACKBOX
 #define ENABLE_BLACKBOX_LOGGING_ON_SPIFLASH_BY_DEFAULT
-
 #define TELEMETRY
+//#define TELEMETRY_IBUS
 #define SERIAL_RX
 #define USE_SERVOS
 #define USE_CLI
+#define USE_EXTI
 #define TARGET_MOTOR_COUNT 6
 
 
 
+// IO - from schematics
+#define TARGET_IO_PORTA 0xffff
+#define TARGET_IO_PORTB 0xffff
+#define TARGET_IO_PORTC (BIT(14))

@@ -59,7 +59,7 @@
 #define MSP_PROTOCOL_VERSION                0
 
 #define API_VERSION_MAJOR                   1 // increment when major changes are made
-#define API_VERSION_MINOR                   21 // increment when any change is made, reset to zero when major changes are released after changing API_VERSION_MAJOR
+#define API_VERSION_MINOR                   25 // increment when any change is made, reset to zero when major changes are released after changing API_VERSION_MAJOR
 
 #define API_VERSION_LENGTH                  2
 
@@ -105,6 +105,9 @@
 //
 // MSP commands for Cleanflight original features
 //
+#define MSP_BATTERY_CONFIG              32
+#define MSP_SET_BATTERY_CONFIG          33
+
 #define MSP_MODE_RANGES                 34    //out message         Returns all mode ranges
 #define MSP_SET_MODE_RANGE              35    //in message          Sets a single mode range
 
@@ -114,8 +117,8 @@
 #define MSP_BOARD_ALIGNMENT             38
 #define MSP_SET_BOARD_ALIGNMENT         39
 
-#define MSP_CURRENT_METER_CONFIG        40
-#define MSP_SET_CURRENT_METER_CONFIG    41
+#define MSP_AMPERAGE_METER_CONFIG       40
+#define MSP_SET_AMPERAGE_METER_CONFIG   41
 
 #define MSP_MIXER                       42
 #define MSP_SET_MIXER                   43
@@ -144,9 +147,6 @@
 
 #define MSP_SONAR_ALTITUDE              58 //out message get sonar altitude [cm]
 
-#define MSP_PID_CONTROLLER              59
-#define MSP_SET_PID_CONTROLLER          60
-
 #define MSP_ARMING_CONFIG               61 //out message         Returns auto_disarm_delay and disarm_kill_switch parameters
 #define MSP_SET_ARMING_CONFIG           62 //in message          Sets auto_disarm_delay and disarm_kill_switch parameters
 
@@ -155,11 +155,6 @@
 //
 #define MSP_RX_MAP                      64 //out message get channel map (also returns number of channels total)
 #define MSP_SET_RX_MAP                  65 //in message set rx map, numchannels to set comes from MSP_RX_MAP
-
-// FIXME - Provided for backwards compatibility with configurator code until configurator is updated.
-// DEPRECATED - DO NOT USE "MSP_BF_CONFIG" and MSP_SET_BF_CONFIG.  In Cleanflight, isolated commands already exist and should be used instead.
-#define MSP_BF_CONFIG                   66 //out message baseflight-specific settings that aren't covered elsewhere
-#define MSP_SET_BF_CONFIG               67 //in message baseflight-specific settings save
 
 #define MSP_REBOOT                      68 //in message reboot settings
 
@@ -188,37 +183,39 @@
 #define MSP_TRANSPONDER_CONFIG          82 //out message         Get transponder settings
 #define MSP_SET_TRANSPONDER_CONFIG      83 //in message          Set transponder settings
 
-#define MSP_OSD_CONFIG                  84 //out message         Get osd settings - betaflight
-#define MSP_SET_OSD_CONFIG              85 //in message          Set osd settings - betaflight
+// DEPRECATED (single responsibility principle violation in betaflight) - for reference only.
+//#define MSP_OSD_CONFIG                  84 //out message         Get osd settings - betaflight
+//#define MSP_SET_OSD_CONFIG              85 //in message          Set osd settings - betaflight
 
-#define MSP_OSD_CHAR_READ               86 //out message         Get osd settings - betaflight
-#define MSP_OSD_CHAR_WRITE              87 //in message          Set osd settings - betaflight
+#define MSP_OSD_CHAR_READ               86 //out message         Read a font character.
+#define MSP_OSD_CHAR_WRITE              87 //in message          Write a font character.
 
 #define MSP_VTX_CONFIG                  88 //out message         Get vtx settings - betaflight
 #define MSP_SET_VTX_CONFIG              89 //in message          Set vtx settings - betaflight
 
 // Betaflight Additional Commands
-#define MSP_PID_ADVANCED_CONFIG         90
-#define MSP_SET_PID_ADVANCED_CONFIG     91
+// DEPRECATED - for reference only, 'ADVANCED' is like 'MISC' or 'UTIL' it's a garbage bin for random stuff. A bad idea.
+//#define MSP_ADVANCED_CONFIG             90
+//#define MSP_SET_ADVANCED_CONFIG         91
 
 #define MSP_FILTER_CONFIG               92
 #define MSP_SET_FILTER_CONFIG           93
 
-#define MSP_ADVANCED_TUNING             94
-#define MSP_SET_ADVANCED_TUNING         95
+#define MSP_PID_ADVANCED                94
+#define MSP_SET_PID_ADVANCED            95
 
 #define MSP_SENSOR_CONFIG               96
 #define MSP_SET_SENSOR_CONFIG           97
-
-#define MSP_SPECIAL_PARAMETERS          98 // Temporary betaflight parameters before cleanup and keep CF compatibility
-#define MSP_SET_SPECIAL_PARAMETERS      99 // Temporary betaflight parameters before cleanup and keep CF compatibility
 
 //
 // OSD specific
 //
 #define MSP_OSD_VIDEO_CONFIG            180
 #define MSP_SET_OSD_VIDEO_CONFIG        181
-
+#define MSP_OSD_VIDEO_STATUS            182
+#define MSP_OSD_ELEMENT_SUMMARY         183
+#define MSP_OSD_LAYOUT_CONFIG           184
+#define MSP_SET_OSD_LAYOUT_CONFIG       185
 //
 // Multwii original MSP commands
 //
@@ -241,7 +238,8 @@
 #define MSP_PID                  112    //out message         P I D coeff (9 are used currently)
 #define MSP_BOX                  113    //out message         BOX setup (number is dependant of your setup)
 #define MSP_MISC                 114    //out message         powermeter trig
-#define MSP_MOTOR_PINS           115    //out message         which pins are in use for motors & servos, for GUI
+// DEPRECATED
+//#define MSP_MOTOR_PINS           115    //out message         which pins are in use for motors & servos, for GUI
 #define MSP_BOXNAMES             116    //out message         the aux switch names
 #define MSP_PIDNAMES             117    //out message         the PID names
 #define MSP_WP                   118    //out message         get a WP, WP# is in the payload, returns (WP#, lat, lon, alt, flags) WP#0-home, WP#16-poshold
@@ -254,8 +252,9 @@
 #define MSP_SENSOR_ALIGNMENT     126    //out message         orientation of acc,gyro,mag
 #define MSP_LED_STRIP_MODECOLOR  127    //out message         Get LED strip mode_color settings
 #define MSP_VOLTAGE_METERS       128    //out message         Voltage (per meter)
-#define MSP_CURRENT_METERS       129    //out message         Amperage (per meter)
-#define MSP_BATTERY_STATES       130    //out message         Connected/Disconnected, Voltage, Current Used (per battery)
+#define MSP_AMPERAGE_METERS      129    //out message         Amperage (per meter)
+#define MSP_BATTERY_STATE        130    //out message         Connected/Disconnected, Voltage, Current Used
+#define MSP_PILOT                131    //out message         callsign, etc
 
 #define MSP_SET_RAW_RC           200    //in message          8 rc chan
 #define MSP_SET_RAW_GPS          201    //in message          fix, numsat, lat, lon, alt, speed
@@ -277,9 +276,11 @@
 #define MSP_SET_RESET_CURR_PID   219    //in message          resetting the current pid profile to defaults
 #define MSP_SET_SENSOR_ALIGNMENT 220    //in message          set the orientation of the acc,gyro,mag
 #define MSP_SET_LED_STRIP_MODECOLOR 221 //in  message         Set LED strip mode_color settings
+#define MSP_SET_PILOT            222    //in message          callsign, etc
 
 // #define MSP_BIND                 240    //in message          no param
 // #define MSP_ALARMS               242
+#define MSP_PASSTHROUGH_SERIAL   244    //in message          serial port number
 
 #define MSP_EEPROM_WRITE         250    //in message          no param
 #define MSP_RESERVE_1            251    //reserved for system usage
@@ -289,7 +290,6 @@
 #define MSP_RESERVE_3            255    //reserved for system usage
 
 // Additional commands that are not compatible with MultiWii
-#define MSP_STATUS_EX            150    //out message         cycletime, errors_count, CPU load, sensor present etc
 #define MSP_UID                  160    //out message         Unique device ID
 #define MSP_GPSSVINFO            164    //out message         get Signal Strength (only U-Blox)
 #define MSP_GPSSTATISTICS        166    //out message         get GPS debugging data

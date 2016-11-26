@@ -49,7 +49,7 @@
 #include "rx/rx.h"
 
 #include "io/gimbal.h"
-#include "io/motor_and_servo.h"
+#include "io/servos.h"
 
 #include "fc/runtime_config.h"
 #include "fc/config.h"
@@ -75,11 +75,11 @@ int16_t servo[MAX_SUPPORTED_SERVOS];
 static int useServo;
 STATIC_UNIT_TESTED uint8_t servoCount;
 static servoParam_t *servoConf;
-static biquad_t servoFilterState[MAX_SUPPORTED_SERVOS];
+static biquadFilter_t servoFilterState[MAX_SUPPORTED_SERVOS];
 
 PG_REGISTER_ARR(servoMixer_t, MAX_SERVO_RULES, customServoMixer, PG_SERVO_MIXER, 0);
 
-PG_REGISTER_PROFILE_WITH_RESET_FN(servoProfile_t, servoProfile, PG_SERVO_PROFILE, 0);
+PG_REGISTER_PROFILE_WITH_RESET_FN(servoProfile_t, servoProfile, PG_SERVO_PROFILE, 1);
 
 void pgResetFn_servoProfile(servoProfile_t *instance)
 {
@@ -89,8 +89,6 @@ void pgResetFn_servoProfile(servoProfile_t *instance)
             .max = DEFAULT_SERVO_MAX,
             .middle = DEFAULT_SERVO_MIDDLE,
             .rate = 100,
-            .angleAtMin = DEFAULT_SERVO_MIN_ANGLE,
-            .angleAtMax = DEFAULT_SERVO_MAX_ANGLE,
             .forwardFromChannel = CHANNEL_FORWARDING_DISABLED,
         );
     }
@@ -187,7 +185,7 @@ void mixerInitialiseServoFiltering(uint32_t targetLooptime)
 {
     if (mixerConfig()->servo_lowpass_enable) {
         for (int servoIdx = 0; servoIdx < MAX_SUPPORTED_SERVOS; servoIdx++) {
-            BiQuadNewLpf(mixerConfig()->servo_lowpass_freq, &servoFilterState[servoIdx], targetLooptime);
+            biquadFilterInitLPF(&servoFilterState[servoIdx],  mixerConfig()->servo_lowpass_freq, targetLooptime);
         }
     }
 }
@@ -552,7 +550,7 @@ void filterServos(void)
 
     if (mixerConfig()->servo_lowpass_enable) {
         for (servoIdx = 0; servoIdx < MAX_SUPPORTED_SERVOS; servoIdx++) {
-            servo[servoIdx] = lrintf(applyBiQuadFilter((float) servo[servoIdx], &servoFilterState[servoIdx]));
+            servo[servoIdx] = lrintf(biquadFilterApply(&servoFilterState[servoIdx], (float) servo[servoIdx]));
 
             // Sanity check
             servo[servoIdx] = constrain(servo[servoIdx], servoConf[servoIdx].min, servoConf[servoIdx].max);

@@ -1,5 +1,4 @@
 /*
- * This file is part of Cleanflight.
  *
  * Cleanflight is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -97,7 +96,7 @@ void serialWrite(serialPort_t *instance, uint8_t ch)
     serialWriteBuffer.buf[serialWritePos++] = ch;
 }
 
-void serialWriteBuf(serialPort_t *instance, uint8_t *data, int count)
+void serialWriteBuf(serialPort_t *instance, const uint8_t *data, int count)
 {
     while(count--)
         serialWrite(instance, *data++);
@@ -113,7 +112,7 @@ void serialEndWrite(serialPort_t *instance)
     EXPECT_EQ(instance, &serialTestInstance);
 }
 
-uint8_t serialRxBytesWaiting(serialPort_t *instance)
+uint32_t serialRxBytesWaiting(const serialPort_t *instance)
 {
     EXPECT_EQ(instance, &serialTestInstance);
     EXPECT_GE(serialReadEnd, serialReadPos);
@@ -130,7 +129,7 @@ uint8_t serialRead(serialPort_t *instance)
     return ch;
 }
 
-bool isSerialTransmitBufferEmpty(serialPort_t *instance)
+bool isSerialTransmitBufferEmpty(const serialPort_t *instance)
 {
     EXPECT_EQ(instance, &serialTestInstance);
     return true;
@@ -261,6 +260,7 @@ void handleOneshotFeatureChangeOnRestart(void) {}
 void stopMotors(void) {}
 uint8_t armingFlags = 0;
 void delay(uint32_t ms) {UNUSED(ms);}
+uint32_t millis(void) { return 0;}
 // from system_stm32fN0x.c
 void systemReset(void) {}
 void systemResetToBootloader(void) {}
@@ -270,5 +270,6 @@ serialPort_t *uartOpen(USART_TypeDef *, serialReceiveCallbackPtr, uint32_t, port
 serialPort_t *openSoftSerial(softSerialPortIndex_e, serialReceiveCallbackPtr, uint32_t, portOptions_t) { return NULL; }
 void serialSetMode(serialPort_t *, portMode_t) {}
 bool isRebootScheduled = false;
+
 }
 
